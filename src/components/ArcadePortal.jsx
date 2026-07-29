@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import gsap from 'gsap';
 import soundSystem from '../utils/soundSystem';
 import MissionPlaceholderGameplay from './MissionPlaceholderGameplay';
+import SpiderSwingGame from './games/SpiderSwingGame';
 
 const ArcadePortal = ({ stoneName, onClose, onGameComplete }) => {
   // Centralized State Machine
@@ -357,10 +358,21 @@ const ArcadePortal = ({ stoneName, onClose, onGameComplete }) => {
           {/* 2. LOADING (System Diagnostic Logs) */}
           {missionState === 'LOADING' && (
             <div style={{ fontFamily: 'var(--font-hud)', color: '#00f5ff', fontSize: '1.2rem', letterSpacing: '4px', textAlign: 'center' }}>
-              <div>STARK SIMULATOR INITIALIZING...</div>
-              <div style={{ color: '#fff', opacity: 0.5, fontSize: '0.8rem', marginTop: '10px' }}>
-                CALIBRATING QUANTUM REACTION CORE ANOMALIES
-              </div>
+              {stoneName === 'Space' ? (
+                <>
+                  <div>F.R.I.D.A.Y. SECURE LINK ONLINE</div>
+                  <div style={{ color: '#ffd84a', opacity: 0.9, fontSize: '0.9rem', marginTop: '10px', letterSpacing: '2px' }}>
+                    "Loading Spider-Man Web Swing Simulation."
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>STARK SIMULATOR INITIALIZING...</div>
+                  <div style={{ color: '#fff', opacity: 0.5, fontSize: '0.8rem', marginTop: '10px' }}>
+                    CALIBRATING QUANTUM REACTION CORE ANOMALIES
+                  </div>
+                </>
+              )}
             </div>
           )}
 
@@ -379,16 +391,27 @@ const ArcadePortal = ({ stoneName, onClose, onGameComplete }) => {
             </div>
           )}
 
-          {/* 4. PLAYING (Active placeholder gameplay container) */}
+          {/* 4. PLAYING (Active gameplay container) */}
           {missionState === 'PLAYING' && (
-            <MissionPlaceholderGameplay 
-              onWin={handleWin}
-              onLoss={handleLoss}
-              onScoreUpdate={handleScoreUpdate}
-              onComboUpdate={handleComboUpdate}
-              onHealthUpdate={handleHealthUpdate}
-              isPaused={false}
-            />
+            stoneName === 'Space' ? (
+              <SpiderSwingGame 
+                onWin={handleWin}
+                onLoss={handleLoss}
+                onScoreUpdate={handleScoreUpdate}
+                onComboUpdate={handleComboUpdate}
+                onHealthUpdate={handleHealthUpdate}
+                isPaused={false}
+              />
+            ) : (
+              <MissionPlaceholderGameplay 
+                onWin={handleWin}
+                onLoss={handleLoss}
+                onScoreUpdate={handleScoreUpdate}
+                onComboUpdate={handleComboUpdate}
+                onHealthUpdate={handleHealthUpdate}
+                isPaused={false}
+              />
+            )
           )}
 
           {/* 5. PAUSED Overlay */}

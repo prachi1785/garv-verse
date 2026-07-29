@@ -1,178 +1,274 @@
 import React, { useEffect, useRef, useState } from 'react';
 import soundSystem from '../../utils/soundSystem';
 
-const SpiderSwingGame = ({ onWin, onLoss, onScoreUpdate, onComboUpdate, isPaused }) => {
+const SpiderSwingGame = ({ onWin, onLoss, onScoreUpdate, onComboUpdate, onHealthUpdate, isPaused }) => {
   const canvasRef = useRef(null);
+  
+  // Game states
   const [score, setScore] = useState(0);
   const [tokens, setTokens] = useState(0);
+  const [health, setHealth] = useState(100);
+  const [distance, setDistance] = useState(0);
+  const [gamePhase, setGamePhase] = useState('playing'); // playing -> victory_landing -> complete
 
   const player = useRef({
-    x: 80,
-    y: 120,
-    vx: 3.2,
-    vy: 0,
+    x: 0,
+    y: 140,
+    targetX: 0,
+    lane: 1, // 0 = Left, 1 = Center, 2 = Right
     radius: 12,
-    mass: 1,
-    rotation: 0,
-    isSwinging: false,
-    anchor: { x: 0, y: 0 },
-    restLength: 100
+    invulnerable: false,
+    invulnTimer: 0,
+    flashState: false,
+    webSide: 0, // 0 = left hand web, 1 = right hand web
+    webLength: 0
   });
 
-  const anchorPoints = useRef([]);
-  const drones = useRef([]);
-  const spiderTokens = useRef([]);
-  const progress = useRef(0);
-  const gravity = 0.22;
-  const finishDistance = 2500;
-  
-  // Track sparks
+  const collectibles = useRef([]); // { x, y, lane, type, active }
+  const drones = useRef([]); // { x, y, lane, vx, laserTimer, active }
+  const lasers = useRef([]); // { x, y, active }
   const particles = useRef([]);
+  const buildings = useRef([]);
 
+  // Camera settings
+  const cameraShake = useRef(0);
+  const scrollSpeed = useRef(4.5);
+  const maxDistance = 1500;
+  
+  // Swipe controls tracking
+  const touchStart = useRef({ x: 0, y: 0 });
+
+  // Refs for state values inside animation loop
+  const scoreRef = useRef(0);
+  const tokensRef = useRef(0);
+  const healthRef = useRef(100);
+  const distanceRef = useRef(0);
+  scoreRef.current = score;
+  tokensRef.current = tokens;
+  healthRef.current = health;
+  distanceRef.current = distance;
+
+  // 1. Controls listener - registered EXACTLY ONCE on mount
+  useEffect(() => {
+    console.log('[DEBUG] SpiderSwingGame: Controls attached');
+    const handleKeyDown = (e) => {
+      if (isPaused || gamePhase !== 'playing') return;
+      const p = player.current;
+
+      if (e.code === 'ArrowLeft' || e.code === 'KeyA') {
+        p.lane = Math.max(p.lane - 1, 0);
+        soundSystem.playTick();
+        p.webSide = 0;
+        p.webLength = 0;
+      }
+      if (e.code === 'ArrowRight' || e.code === 'KeyD') {
+        p.lane = Math.min(p.lane + 1, 2);
+        soundSystem.playTick();
+        p.webSide = 1;
+        p.webLength = 0;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      console.log('[DEBUG] SpiderSwingGame: Controls detached');
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isPaused, gamePhase]);
+
+  // 2. Main Game Loop
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     canvas.width = canvas.parentElement.clientWidth;
-    canvas.height = 200; // slightly smaller height to fit HUD inside portal
+    canvas.height = 180;
 
-    // Generate anchors
-    for (let i = 0; i < 20; i++) {
-      anchorPoints.current.push({
-        x: 120 + i * 160 + (Math.random() - 0.5) * 40,
-        y: 15 + Math.random() * 25
-      });
-    }
+    // Center player initially
+    const laneWidth = canvas.width / 4;
+    player.current.x = laneWidth * 2;
+    player.current.targetX = laneWidth * 2;
 
-    // Generate tokens
-    for (let i = 0; i < 15; i++) {
-      spiderTokens.current.push({
-        x: 200 + i * 180 + (Math.random() - 0.5) * 60,
-        y: 60 + Math.random() * 70,
-        active: true
-      });
-    }
+    // Generate initial buildings background
+    generateBuildings(canvas);
 
-    // Generate drones
-    for (let i = 0; i < 10; i++) {
-      drones.current.push({
-        x: 350 + i * 280 + (Math.random() - 0.5) * 80,
-        y: 50 + Math.random() * 80,
-        active: true,
-        phase: Math.random() * Math.PI * 2
-      });
-    }
-  }, []);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-
+    console.log('[DEBUG] SpiderSwingGame: Main physics loop starting');
     let frameId;
+    let spawnTimer = 0;
 
     const render = () => {
+      const ctx = canvas.getContext('2d');
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Draw city grid scrolling
+      // Apply camera shake if hit
       ctx.save();
-      ctx.strokeStyle = 'rgba(230, 36, 41, 0.03)';
-      ctx.lineWidth = 1;
-      const scrollOffset = progress.current % 40;
-      for (let x = -scrollOffset; x < canvas.width; x += 40) {
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, canvas.height);
-        ctx.stroke();
+      if (cameraShake.current > 0) {
+        const dx = (Math.random() - 0.5) * cameraShake.current;
+        const dy = (Math.random() - 0.5) * cameraShake.current;
+        ctx.translate(dx, dy);
+        cameraShake.current -= 0.55;
       }
-      ctx.restore();
 
-      // Only update physics if NOT paused
-      if (!isPaused) {
+      // Draw background space sky
+      ctx.fillStyle = '#05070b';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Draw scrolling buildings parallax
+      drawBuildings(ctx, canvas);
+
+      if (!isPaused && gamePhase === 'playing') {
         updatePhysics(canvas);
+
+        // Spawn logic
+        spawnTimer += 16.6;
+        if (spawnTimer > 1300) {
+          spawnRandomElements(canvas);
+          spawnTimer = 0;
+        }
       }
 
-      // Draw anchors
-      ctx.save();
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
-      anchorPoints.current.forEach((pt) => {
-        const drawX = pt.x - progress.current;
-        if (drawX > -20 && drawX < canvas.width + 20) {
-          ctx.beginPath();
-          ctx.arc(drawX, pt.y, 4, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      });
-      ctx.restore();
-
-      // Draw Web string
-      const p = player.current;
-      if (p.isSwinging) {
-        const drawAnchorX = p.anchor.x - progress.current;
-        const drawPlayerX = p.x - progress.current;
-
-        ctx.save();
-        ctx.strokeStyle = '#FFFFFF';
-        ctx.shadowBlur = 6;
-        ctx.shadowColor = '#FFFFFF';
-        ctx.lineWidth = 1.8;
-        ctx.beginPath();
-        ctx.moveTo(drawPlayerX, p.y);
-        ctx.lineTo(drawAnchorX, p.anchor.y);
-        ctx.stroke();
-        ctx.restore();
+      // Draw webs
+      if (gamePhase === 'playing') {
+        drawWebs(ctx, canvas);
       }
 
-      // Draw Tokens
-      ctx.save();
-      spiderTokens.current.forEach((tok) => {
-        if (!tok.active) return;
-        const drawX = tok.x - progress.current;
-        if (drawX > -20 && drawX < canvas.width + 20) {
-          const bounce = Math.sin(Date.now() * 0.01 + tok.x) * 4;
-          ctx.shadowBlur = 8;
-          ctx.shadowColor = '#FFD84A';
-          ctx.fillStyle = '#FFD84A';
-          ctx.beginPath();
-          ctx.arc(drawX, tok.y + bounce, 7, 0, Math.PI * 2);
-          ctx.fill();
-          
-          ctx.fillStyle = '#05070B';
-          ctx.font = 'bold 7px sans-serif';
-          ctx.textAlign = 'center';
-          ctx.fillText('S', drawX, tok.y + bounce + 2.5);
-        }
+      // Draw Collectibles
+      drawCollectibles(ctx, canvas);
+
+      // Draw Drones & Lasers
+      drawDrones(ctx, canvas);
+
+      // Draw Spider-Man
+      drawPlayer(ctx);
+
+      // Draw particles
+      drawParticles(ctx);
+
+      // Draw progress bar overlay
+      drawProgressBar(ctx, canvas);
+
+      ctx.restore(); // restore camera shake translation
+
+      frameId = requestAnimationFrame(render);
+    };
+
+    render();
+
+    return () => {
+      console.log('[DEBUG] SpiderSwingGame: Terminating animation loops');
+      cancelAnimationFrame(frameId);
+    };
+  }, [isPaused, gamePhase]);
+
+  const generateBuildings = (canvas) => {
+    buildings.current = [];
+    for (let i = 0; i < 6; i++) {
+      buildings.current.push({
+        x: i * (canvas.width / 5),
+        y: 40 + Math.random() * 50,
+        w: 45 + Math.random() * 30,
+        h: 150
       });
-      ctx.restore();
+    }
+  };
 
-      // Draw Drones
-      ctx.save();
-      drones.current.forEach((drone) => {
-        if (!drone.active) return;
-        const drawX = drone.x - progress.current;
-        if (drawX > -20 && drawX < canvas.width + 20) {
-          const hoverY = drone.y + Math.sin(Date.now() * 0.008 + drone.phase) * 12;
-          ctx.shadowBlur = 8;
-          ctx.shadowColor = '#E62429';
-          ctx.fillStyle = '#E62429';
-          ctx.beginPath();
-          ctx.rect(drawX - 10, hoverY - 6, 20, 12);
-          ctx.fill();
-
-          ctx.fillStyle = '#FFFFFF';
-          ctx.beginPath();
-          ctx.arc(drawX, hoverY, 2.5, 0, Math.PI * 2);
-          ctx.fill();
+  const drawBuildings = (ctx, canvas) => {
+    ctx.fillStyle = '#0d131f';
+    buildings.current.forEach((b) => {
+      if (gamePhase === 'playing' && !isPaused) {
+        b.y += scrollSpeed.current * 0.3; // parallax scroll
+        if (b.y > canvas.height) {
+          b.y = -40;
+          b.w = 45 + Math.random() * 30;
         }
-      });
-      ctx.restore();
+      }
+      ctx.fillRect(b.x, b.y, b.w, b.h);
+      ctx.strokeStyle = '#1e293b';
+      ctx.strokeRect(b.x, b.y, b.w, b.h);
+    });
+  };
 
-      // Draw Spidey
-      const drawPX = p.x - progress.current;
-      ctx.save();
-      ctx.translate(drawPX, p.y);
-      ctx.rotate(p.rotation);
+  const drawProgressBar = (ctx, canvas) => {
+    const pct = Math.min(distanceRef.current / maxDistance, 1);
+    ctx.save();
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+    ctx.fillRect(10, 10, canvas.width - 20, 6);
+    
+    ctx.fillStyle = '#00F5FF';
+    ctx.shadowBlur = 8;
+    ctx.shadowColor = '#00F5FF';
+    ctx.fillRect(10, 10, (canvas.width - 20) * pct, 6);
+    
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 8px sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(`${Math.round(pct * 100)}% DIST`, canvas.width - 10, 24);
+    ctx.restore();
+  };
 
+  const drawWebs = (ctx, canvas) => {
+    const p = player.current;
+    
+    // Animate web line drawing
+    if (p.webLength < 1) p.webLength += 0.08;
+
+    ctx.save();
+    ctx.strokeStyle = '#FFFFFF';
+    ctx.shadowBlur = 6;
+    ctx.shadowColor = '#FFFFFF';
+    ctx.lineWidth = 1.6;
+
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y - 8);
+    // Draw web anchor path to left or right screen ceiling coordinates
+    const anchorX = p.webSide === 0 ? 0 : canvas.width;
+    const targetAnchorX = p.x + (anchorX - p.x) * p.webLength;
+    const targetAnchorY = p.y - 8 + (0 - (p.y - 8)) * p.webLength;
+
+    ctx.lineTo(targetAnchorX, targetAnchorY);
+    ctx.stroke();
+    ctx.restore();
+  };
+
+  const drawPlayer = (ctx) => {
+    const p = player.current;
+
+    // Flash player when invulnerable
+    if (p.invulnerable) {
+      p.flashState = !p.flashState;
+      if (p.flashState) return; // skip drawing frame
+    }
+
+    ctx.save();
+    ctx.translate(p.x, p.y);
+
+    if (gamePhase === 'victory_landing') {
+      // Classic Crouching Hero pose visual sticking out
+      ctx.fillStyle = '#E62429';
+      ctx.shadowBlur = 15;
+      ctx.shadowColor = '#E62429';
+      // crouch body
+      ctx.beginPath();
+      ctx.moveTo(-10, 10);
+      ctx.lineTo(0, -10);
+      ctx.lineTo(10, 10);
+      ctx.closePath();
+      ctx.fill();
+
+      // blue legs
+      ctx.fillStyle = '#00F5FF';
+      ctx.fillRect(-12, 10, 6, 4);
+      ctx.fillRect(6, 10, 6, 4);
+
+      // eyes
+      ctx.fillStyle = '#FFFFFF';
+      ctx.beginPath();
+      ctx.arc(-3, -2, 2.5, 0, Math.PI * 2);
+      ctx.arc(3, -2, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      // Swinging / Flying circle avatar representation
       ctx.fillStyle = '#E62429';
       ctx.shadowBlur = 10;
       ctx.shadowColor = '#E62429';
@@ -180,8 +276,9 @@ const SpiderSwingGame = ({ onWin, onLoss, onScoreUpdate, onComboUpdate, isPaused
       ctx.arc(0, 0, p.radius, 0, Math.PI * 2);
       ctx.fill();
 
-      ctx.strokeStyle = '#05070B';
-      ctx.lineWidth = 1;
+      // Spider insignia
+      ctx.strokeStyle = '#05070b';
+      ctx.lineWidth = 1.2;
       ctx.beginPath();
       ctx.moveTo(-p.radius, 0);
       ctx.lineTo(p.radius, 0);
@@ -189,140 +286,249 @@ const SpiderSwingGame = ({ onWin, onLoss, onScoreUpdate, onComboUpdate, isPaused
       ctx.lineTo(0, p.radius);
       ctx.stroke();
 
+      // white eyes
       ctx.fillStyle = '#FFFFFF';
       ctx.beginPath();
-      ctx.ellipse(-4, -3, 3.5, 2, -Math.PI / 4, 0, Math.PI * 2);
-      ctx.ellipse(4, -3, 3.5, 2, Math.PI / 4, 0, Math.PI * 2);
+      ctx.ellipse(-4, -3, 3, 2, -Math.PI / 4, 0, Math.PI * 2);
+      ctx.ellipse(4, -3, 3, 2, Math.PI / 4, 0, Math.PI * 2);
       ctx.fill();
-      ctx.restore();
+    }
 
-      drawSparks(ctx);
+    ctx.restore();
+  };
 
-      frameId = requestAnimationFrame(render);
-    };
+  const drawCollectibles = (ctx, canvas) => {
+    ctx.save();
+    collectibles.current.forEach((col) => {
+      if (!col.active) return;
+      
+      const bounce = Math.sin(Date.now() * 0.01 + col.y) * 3;
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = '#FFD84A';
+      ctx.fillStyle = '#FFD84A';
+      ctx.beginPath();
+      ctx.arc(col.x, col.y + bounce, 7, 0, Math.PI * 2);
+      ctx.fill();
+      
+      ctx.fillStyle = '#05070B';
+      ctx.font = 'bold 8px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('S', col.x, col.y + bounce + 3);
+    });
+    ctx.restore();
+  };
 
-    render();
+  const drawDrones = (ctx, canvas) => {
+    ctx.save();
+    
+    // Draw lasers
+    ctx.fillStyle = '#00ff66';
+    ctx.shadowBlur = 8;
+    ctx.shadowColor = '#00ff66';
+    lasers.current.forEach((l) => {
+      if (!l.active) return;
+      ctx.beginPath();
+      ctx.arc(l.x, l.y, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+    });
 
-    return () => cancelAnimationFrame(frameId);
-  }, [isPaused]);
+    // Draw Drones
+    drones.current.forEach((dr) => {
+      if (!dr.active) return;
+
+      ctx.fillStyle = '#5c3a21'; // Oscorp dark metallic
+      ctx.strokeStyle = '#e62429';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.rect(dr.x - 12, dr.y - 7, 24, 14);
+      ctx.fill();
+      ctx.stroke();
+
+      // glowing green sensor eye
+      ctx.fillStyle = '#00ff66';
+      ctx.beginPath();
+      ctx.arc(dr.x, dr.y, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    ctx.restore();
+  };
 
   const updatePhysics = (canvas) => {
     const p = player.current;
-    p.vy += gravity;
+    
+    // Smooth lane coordinates lerping
+    const laneWidth = canvas.width / 4;
+    p.targetX = laneWidth * (p.lane + 1);
+    p.x += (p.targetX - p.x) * 0.15;
 
-    if (p.isSwinging) {
-      const dx = p.x - p.anchor.x;
-      const dy = p.y - p.anchor.y;
-      const dist = Math.hypot(dx, dy);
+    // Advance distance
+    const nextDistance = distanceRef.current + scrollSpeed.current * 0.08;
+    setDistance(nextDistance);
 
-      const tensionForce = (dist - p.restLength) * 0.052;
-      const dirX = dx / dist;
-      const dirY = dy / dist;
-
-      p.vx -= dirX * tensionForce;
-      p.vy -= dirY * tensionForce;
-      p.rotation = Math.atan2(dy, dx) - Math.PI / 2;
-    } else {
-      const speed = Math.hypot(p.vx, p.vy);
-      if (speed > 4.5) {
-        p.rotation += 0.12;
+    // Invulnerable timer decay
+    if (p.invulnerable) {
+      p.invulnTimer -= 16.6;
+      if (p.invulnTimer <= 0) {
+        p.invulnerable = false;
       }
     }
 
-    p.vx = Math.max(Math.min(p.vx, 8.5), 1.5);
-    p.vy = Math.max(Math.min(p.vy, 7.5), -7.5);
+    // Scroll collectibles down
+    collectibles.current.forEach((col) => {
+      if (!col.active) return;
+      col.y += scrollSpeed.current;
 
-    p.x += p.vx;
-    p.y += p.vy;
-
-    progress.current = p.x - 80;
-
-    if (p.y - p.radius < 5) {
-      p.y = p.radius + 5;
-      p.vy = -p.vy * 0.5;
-    }
-    if (p.y + p.radius > canvas.height - 15) {
-      p.y = canvas.height - p.radius - 15;
-      p.vy = -p.vy * 0.6;
-    }
-
-    // Token checks
-    spiderTokens.current.forEach((tok) => {
-      if (!tok.active) return;
-      const dist = Math.hypot(p.x - tok.x, p.y - tok.y);
+      // collide check
+      const dist = Math.hypot(p.x - col.x, p.y - col.y);
       if (dist < p.radius + 7) {
-        tok.active = false;
+        col.active = false;
         soundSystem.playTick();
+        triggerExplosion(col.x, col.y, '#FFD84A');
+
+        const nextTokens = tokensRef.current + 1;
+        const nextScore = scoreRef.current + 10;
         
-        const nextTokens = tokens + 1;
-        const nextScore = score + 150;
         setTokens(nextTokens);
         setScore(nextScore);
-
-        // Sync with HUD wrapper
+        
+        // Sync outer managers
         onScoreUpdate(nextScore);
         onComboUpdate(nextTokens);
+
+        // Flash canvas briefly (visual splash feedback)
+        canvasRef.current.style.filter = 'brightness(1.5)';
+        setTimeout(() => {
+          if (canvasRef.current) canvasRef.current.style.filter = 'none';
+        }, 80);
       }
     });
 
-    // Drone checks
-    drones.current.forEach((drone) => {
-      if (!drone.active) return;
-      const hoverY = drone.y + Math.sin(Date.now() * 0.008 + drone.phase) * 12;
-      const dist = Math.hypot(p.x - drone.x, p.y - hoverY);
-      if (dist < p.radius + 10) {
-        drone.active = false;
-        p.vx = 1.0;
-        p.vy = 2.0;
-        
-        const nextScore = Math.max(score - 200, 0);
-        setScore(nextScore);
-        onScoreUpdate(nextScore);
-        
-        triggerExplosion(p.x - progress.current, p.y, '#E62429');
-        soundSystem.playClick();
+    // Scroll Drones and handle laser shooting
+    drones.current.forEach((dr) => {
+      if (!dr.active) return;
+      dr.y += scrollSpeed.current * 0.85;
+
+      // Move horizontally (patrol)
+      dr.x += dr.vx;
+      const laneWidth = canvas.width / 4;
+      const leftBound = laneWidth * 0.8;
+      const rightBound = laneWidth * 3.2;
+      if (dr.x < leftBound || dr.x > rightBound) {
+        dr.vx = -dr.vx;
+      }
+
+      // Shoot lasers down
+      dr.laserTimer += 16.6;
+      if (dr.laserTimer > 1800) {
+        lasers.current.push({
+          x: dr.x,
+          y: dr.y + 10,
+          active: true
+        });
+        dr.laserTimer = 0;
+      }
+
+      // Collide check
+      const dist = Math.hypot(p.x - dr.x, p.y - dr.y);
+      if (dist < p.radius + 11 && !p.invulnerable) {
+        dr.active = false;
+        triggerHit();
       }
     });
 
-    // Reach finish check
-    if (p.x >= finishDistance) {
-      onWin(score);
+    // Move lasers
+    lasers.current.forEach((l) => {
+      if (!l.active) return;
+      l.y += scrollSpeed.current * 1.5;
+
+      // collide check
+      const dist = Math.hypot(p.x - l.x, p.y - l.y);
+      if (dist < p.radius + 5.5 && !p.invulnerable) {
+        l.active = false;
+        triggerHit();
+      }
+    });
+
+    // Clean inactive offscreen arrays
+    collectibles.current = collectibles.current.filter((c) => c.y < canvas.height + 20 && c.active);
+    drones.current = drones.current.filter((d) => d.y < canvas.height + 20 && d.active);
+    lasers.current = lasers.current.filter((l) => l.y < canvas.height + 20 && l.active);
+
+    // Check Victory
+    if (nextDistance >= maxDistance) {
+      triggerVictory(canvas);
     }
   };
 
-  const handleMouseDown = () => {
-    if (isPaused) return;
-
+  const triggerHit = () => {
+    soundSystem.playClick();
+    cameraShake.current = 15; // activate camera shake translation
+    
+    // Set invulnerable and timers
     const p = player.current;
-    let closest = null;
-    let minDist = 999999;
+    p.invulnerable = true;
+    p.invulnTimer = 1500;
 
-    anchorPoints.current.forEach((pt) => {
-      if (pt.x > p.x - 20) {
-        const dist = Math.hypot(pt.x - p.x, pt.y - p.y);
-        if (dist < minDist && dist < 220) {
-          minDist = dist;
-          closest = pt;
-        }
-      }
-    });
+    const nextHealth = Math.max(healthRef.current - 20, 0);
+    setHealth(nextHealth);
+    onHealthUpdate(nextHealth);
 
-    if (closest) {
-      p.anchor = closest;
-      p.restLength = Math.min(minDist * 0.85, 120);
-      p.isSwinging = true;
-      soundSystem.playPortalSwoosh();
+    if (nextHealth <= 0) {
+      console.log('[DEBUG] SpiderSwingGame: Defeat coordinates triggered');
+      onLoss();
     }
   };
 
-  const handleMouseUp = () => {
-    player.current.isSwinging = false;
+  const spawnRandomElements = (canvas) => {
+    const lane = Math.floor(Math.random() * 3);
+    const laneWidth = canvas.width / 4;
+    const spawnX = laneWidth * (lane + 1);
+
+    if (Math.random() > 0.45) {
+      // Spawn token
+      collectibles.current.push({
+        x: spawnX,
+        y: -15,
+        lane,
+        active: true
+      });
+    } else {
+      // Spawn patrol drone
+      drones.current.push({
+        x: spawnX,
+        y: -20,
+        lane,
+        vx: (Math.random() - 0.5) * 2,
+        laserTimer: Math.random() * 1000,
+        active: true
+      });
+    }
+  };
+
+  const triggerVictory = (canvas) => {
+    setGamePhase('victory_landing');
+    console.log('[DEBUG] SpiderSwingGame: Entering victory landing phase');
+
+    // Position player crouching in center
+    const p = player.current;
+    gsap.to(p, {
+      x: canvas.width / 2,
+      y: canvas.height - 35,
+      duration: 1.2,
+      ease: 'power3.out',
+      onComplete: () => {
+        // Play final snap trigger and complete stats
+        soundSystem.playAvengersFanfare();
+        onWin(scoreRef.current);
+      }
+    });
   };
 
   const triggerExplosion = (x, y, color) => {
-    for (let i = 0; i < 15; i++) {
+    for (let i = 0; i < 10; i++) {
       const angle = Math.random() * Math.PI * 2;
-      const speed = 1.5 + Math.random() * 4;
+      const speed = 1 + Math.random() * 3;
       particles.current.push({
         x,
         y,
@@ -331,12 +537,12 @@ const SpiderSwingGame = ({ onWin, onLoss, onScoreUpdate, onComboUpdate, isPaused
         size: 1.5 + Math.random() * 2,
         alpha: 1,
         color,
-        decay: 0.035
+        decay: 0.04
       });
     }
   };
 
-  const drawSparks = (ctx) => {
+  const drawParticles = (ctx) => {
     for (let i = particles.current.length - 1; i >= 0; i--) {
       const p = particles.current[i];
       p.x += p.vx;
@@ -358,13 +564,36 @@ const SpiderSwingGame = ({ onWin, onLoss, onScoreUpdate, onComboUpdate, isPaused
     }
   };
 
+  // Support swipe movements for mobile
+  const handleTouchStart = (e) => {
+    if (isPaused || gamePhase !== 'playing') return;
+    touchStart.current.x = e.touches[0].clientX;
+    touchStart.current.y = e.touches[0].clientY;
+  };
+
+  const handleTouchEnd = (e) => {
+    if (isPaused || gamePhase !== 'playing') return;
+    const diffX = e.changedTouches[0].clientX - touchStart.current.x;
+    
+    const p = player.current;
+    if (diffX < -50) {
+      // swipe left
+      p.lane = Math.max(p.lane - 1, 0);
+      soundSystem.playTick();
+    } else if (diffX > 50) {
+      // swipe right
+      p.lane = Math.min(p.lane + 1, 2);
+      soundSystem.playTick();
+    }
+  };
+
   return (
     <canvas 
       ref={canvasRef} 
-      className="game-canvas-element" 
-      onMouseDown={handleMouseDown} 
-      onMouseUp={handleMouseUp}
-      style={{ cursor: 'pointer', height: '180px' }} 
+      className="game-canvas-element"
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      style={{ height: '170px' }}
     />
   );
 };
