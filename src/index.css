@@ -901,12 +901,37 @@ body {
   border: 1px solid var(--hud-border-cyan);
   border-radius: 6px;
   text-align: center;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.arcade-game-card::after {
+  content: '';
+  position: absolute;
+  top: -100%;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background: linear-gradient(90deg, transparent, var(--stone-color, #00f5ff), transparent);
+  opacity: 0;
+  pointer-events: none;
 }
 
 .arcade-game-card:hover {
-  border-color: var(--stark-gold);
-  transform: translateY(-5px);
-  box-shadow: 0 10px 25px rgba(0, 245, 255, 0.15);
+  border-color: var(--stone-color, var(--stark-gold));
+  transform: translateY(-6px);
+  box-shadow: 0 12px 30px rgba(var(--stone-rgb, 0, 245, 255), 0.25);
+}
+
+.arcade-game-card:hover::after {
+  opacity: 0.8;
+  animation: scanCardLine 1.8s infinite linear;
+}
+
+@keyframes scanCardLine {
+  0% { top: -10%; }
+  100% { top: 110%; }
 }
 
 .arcade-game-card.completed {
@@ -1447,4 +1472,28 @@ body.scanlines-disabled .hologram-scanlines {
   backdrop-filter: blur(4px) !important;
   border-top: 1px solid rgba(0, 245, 255, 0.2) !important;
   margin: 0 !important;
+}
+
+/* Infinity Gauntlet Sockets Electrical Arc flicker keyframes */
+@keyframes flickerArc {
+  0% {
+    opacity: 0.1;
+    transform: scale(0.95) skewX(2deg);
+  }
+  25% {
+    opacity: 0.85;
+    transform: scaleY(1.05) skewX(-3deg) rotate(2deg);
+  }
+  50% {
+    opacity: 0.3;
+    transform: scale(1.0) skewY(1deg);
+  }
+  75% {
+    opacity: 0.95;
+    transform: scaleX(0.9) skewX(4deg) rotate(-2deg);
+  }
+  100% {
+    opacity: 0.2;
+    transform: scale(1.05);
+  }
 }

@@ -13,54 +13,58 @@ const SpaceCanvas = ({ collectedStonesCount = 0 }) => {
     let scene, camera, renderer, frameId;
 
     try {
-      console.log('[DEBUG] SpaceCanvas: Initializing WebGL Renderer and Scene');
+      console.log('[DEBUG] SpaceCanvas: Initializing Living S.H.I.E.L.D. visualizer');
       
       // --- Scene Setup ---
       scene = new THREE.Scene();
-      
-      // Add atmospheric space fog
-      scene.fog = new THREE.FogExp2(0x05070b, 0.02);
+      scene.fog = new THREE.FogExp2(0x05070b, 0.015);
 
       camera = new THREE.PerspectiveCamera(
         60,
         window.innerWidth / window.innerHeight,
         0.1,
-        100
+        150
       );
-      camera.position.set(0, 0, 8);
+      camera.position.set(0, 0, 9);
 
       renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 1.2;
+      renderer.toneMappingExposure = 1.25;
       
       containerRef.current.appendChild(renderer.domElement);
-      console.log('[DEBUG] SpaceCanvas: WebGL context created');
 
-      // --- Lighting ---
-      const ambientLight = new THREE.AmbientLight(0x0a1020, 1.5);
+      // --- Volumetric & Layered Accent Lighting ---
+      const ambientLight = new THREE.AmbientLight(0x091428, 1.8);
       scene.add(ambientLight);
 
-      const dirLight = new THREE.DirectionalLight(0x00f5ff, 1.2);
-      dirLight.position.set(5, 5, 5);
-      scene.add(dirLight);
+      // Arc reactor blue light
+      const reactorLight = new THREE.PointLight(0x00f5ff, 4.5, 15);
+      reactorLight.position.set(-4, 2, -2);
+      scene.add(reactorLight);
 
-      const goldLight = new THREE.DirectionalLight(0xffd84a, 0.6);
-      goldLight.position.set(-5, -5, 2);
+      // Gold accent spotlight
+      const goldLight = new THREE.DirectionalLight(0xffd84a, 1.0);
+      goldLight.position.set(6, 6, 4);
       scene.add(goldLight);
 
-      // --- Multiverse Starfield Background ---
-      const starsCount = 1800;
+      // Sweeping warm light
+      const sweepLight = new THREE.PointLight(0x7f5cff, 2.5, 20);
+      sweepLight.position.set(0, 0, 5);
+      scene.add(sweepLight);
+
+      // --- Starfield Background ---
+      const starsCount = 2000;
       const starsGeometry = new THREE.BufferGeometry();
       const starsPositions = new Float32Array(starsCount * 3);
       const starsColors = new Float32Array(starsCount * 3);
 
       const colorsPalette = [
-        new THREE.Color(0x00f5ff), // Cyan
-        new THREE.Color(0xffd84a), // Gold
-        new THREE.Color(0x7f5cff), // Purple
-        new THREE.Color(0xf7ffff)  // White glow
+        new THREE.Color(0x00f5ff),
+        new THREE.Color(0xffd84a),
+        new THREE.Color(0x7f5cff),
+        new THREE.Color(0xffffff)
       ];
 
       for (let i = 0; i < starsCount * 3; i += 3) {
@@ -68,7 +72,7 @@ const SpaceCanvas = ({ collectedStonesCount = 0 }) => {
         const v = Math.random();
         const theta = u * 2.0 * Math.PI;
         const phi = Math.acos(2.0 * v - 1.0);
-        const r = 20 + Math.random() * 40;
+        const r = 25 + Math.random() * 50;
 
         starsPositions[i] = r * Math.sin(phi) * Math.cos(theta);
         starsPositions[i + 1] = r * Math.sin(phi) * Math.sin(theta);
@@ -84,10 +88,10 @@ const SpaceCanvas = ({ collectedStonesCount = 0 }) => {
       starsGeometry.setAttribute('color', new THREE.BufferAttribute(starsColors, 3));
 
       const starsMaterial = new THREE.PointsMaterial({
-        size: 0.12,
+        size: 0.14,
         vertexColors: true,
         transparent: true,
-        opacity: 0.8,
+        opacity: 0.85,
         sizeAttenuation: true,
         blending: THREE.AdditiveBlending
       });
@@ -95,128 +99,162 @@ const SpaceCanvas = ({ collectedStonesCount = 0 }) => {
       const starField = new THREE.Points(starsGeometry, starsMaterial);
       scene.add(starField);
 
-      // --- Nebula Clouds ---
-      const nebulaMeshes = [];
-      const nebulaColors = [0x7f5cff, 0x00f5ff, 0xe62429, 0x7f5cff, 0x05070b];
+      // --- Floating Holographic SHIELD Emblem (Wireframe Logo Crest) ---
+      const shieldEmblemGroup = new THREE.Group();
+      shieldEmblemGroup.position.set(0, 3.8, -6);
+      scene.add(shieldEmblemGroup);
 
-      nebulaColors.forEach((colorHex, idx) => {
-        const geom = new THREE.SphereGeometry(2 + idx * 1.5, 8, 8);
-        const mat = new THREE.MeshBasicMaterial({
-          color: colorHex,
-          transparent: true,
-          opacity: 0.03 + (idx * 0.01),
-          blending: THREE.AdditiveBlending,
-          side: THREE.BackSide,
-          wireframe: false
-        });
-        const mesh = new THREE.Mesh(geom, mat);
-        mesh.position.set(
-          (Math.random() - 0.5) * 15,
-          (Math.random() - 0.5) * 15,
-          -10 - idx * 5
-        );
-        scene.add(mesh);
-        nebulaMeshes.push(mesh);
-      });
-
-      // --- Floating Arc Reactor ---
-      const arcReactorGroup = new THREE.Group();
-      arcReactorGroup.position.set(-4, 2, -2);
-      scene.add(arcReactorGroup);
-
-      const ringMat = new THREE.MeshStandardMaterial({
-        color: 0x3a4f5f,
-        metalness: 0.95,
-        roughness: 0.15,
-        bumpScale: 0.05
-      });
-
-      const ring1 = new THREE.Mesh(new THREE.TorusGeometry(1.2, 0.08, 12, 48), ringMat);
-      const ring2 = new THREE.Mesh(new THREE.TorusGeometry(0.9, 0.06, 12, 48), ringMat);
-      const ring3 = new THREE.Mesh(new THREE.TorusGeometry(0.65, 0.05, 12, 48), ringMat);
-      
-      ring2.rotation.x = Math.PI / 4;
-      ring3.rotation.y = Math.PI / 6;
-
-      arcReactorGroup.add(ring1);
-      arcReactorGroup.add(ring2);
-      arcReactorGroup.add(ring3);
-
-      const coreMat = new THREE.MeshBasicMaterial({
+      const shieldMat = new THREE.MeshBasicMaterial({
         color: 0x00f5ff,
+        wireframe: true,
         transparent: true,
-        opacity: 0.8,
+        opacity: 0.28,
         blending: THREE.AdditiveBlending
       });
-      const core = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.15, 24), coreMat);
-      core.rotation.x = Math.PI / 2;
-      arcReactorGroup.add(core);
 
-      const coreLight = new THREE.PointLight(0x00f5ff, 4, 10);
-      arcReactorGroup.add(coreLight);
-
-      const coilGroup = new THREE.Group();
-      const coilGeom = new THREE.CylinderGeometry(0.04, 0.04, 0.15, 8);
-      const coilMat = new THREE.MeshStandardMaterial({ color: 0xffa500, metalness: 0.8, roughness: 0.3 });
+      // Outer rings representing SHIELD orbit lines
+      const ring1 = new THREE.Mesh(new THREE.TorusGeometry(2.5, 0.04, 8, 64), shieldMat);
+      const ring2 = new THREE.Mesh(new THREE.TorusGeometry(2.1, 0.02, 6, 48), shieldMat);
+      const innerTorus = new THREE.Mesh(new THREE.TorusGeometry(1.6, 0.08, 4, 32), shieldMat);
       
-      for (let i = 0; i < 10; i++) {
-        const angle = (i / 10) * Math.PI * 2;
-        const coil = new THREE.Mesh(coilGeom, coilMat);
-        coil.position.set(Math.cos(angle) * 0.78, Math.sin(angle) * 0.78, 0);
-        coil.rotation.z = angle + Math.PI / 2;
-        coilGroup.add(coil);
+      shieldEmblemGroup.add(ring1);
+      shieldEmblemGroup.add(ring2);
+      shieldEmblemGroup.add(innerTorus);
+
+      // Torus ring divisions (spokes)
+      const spokeMat = new THREE.LineBasicMaterial({ color: 0x00f5ff, transparent: true, opacity: 0.2 });
+      const spokeGeom = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(0, -2.5, 0),
+        new THREE.Vector3(0, 2.5, 0)
+      ]);
+      for (let i = 0; i < 4; i++) {
+        const spoke = new THREE.Line(spokeGeom, spokeMat);
+        spoke.rotation.z = (i / 4) * Math.PI;
+        shieldEmblemGroup.add(spoke);
       }
-      arcReactorGroup.add(coilGroup);
 
-      // --- Floating Infinity Stones ---
-      const stonesData = [
-        { name: 'Space', color: 0x00f5ff, pos: new THREE.Vector3(4, 2.5, -1), scale: 0.3, speed: 1.0 },
-        { name: 'Mind', color: 0xffd84a, pos: new THREE.Vector3(5, 0.5, 0), scale: 0.35, speed: 0.8 },
-        { name: 'Reality', color: 0xe62429, pos: new THREE.Vector3(3.8, -1.8, -1), scale: 0.28, speed: 1.2 },
-        { name: 'Power', color: 0x7f5cff, pos: new THREE.Vector3(-4.5, -2, -2), scale: 0.32, speed: 0.9 },
-        { name: 'Time', color: 0x00ff66, pos: new THREE.Vector3(-3.5, -0.5, 0), scale: 0.3, speed: 1.1 },
-        { name: 'Soul', color: 0xff9900, pos: new THREE.Vector3(-2.8, 1.8, -1.5), scale: 0.29, speed: 0.7 }
+      // --- Floating Holographic Drones ---
+      const dronesGroup = new THREE.Group();
+      scene.add(dronesGroup);
+
+      const droneData = [
+        { pos: new THREE.Vector3(-6, -1, -3), bobOffset: 0, bobSpeed: 1.2 },
+        { pos: new THREE.Vector3(6, 1.5, -4), bobOffset: Math.PI, bobSpeed: 0.9 }
       ];
+      const droneMeshes = [];
 
-      const stoneMeshes = [];
+      droneData.forEach((data) => {
+        const drone = new THREE.Group();
+        drone.position.copy(data.pos);
 
-      stonesData.forEach((stone, idx) => {
-        const gemGeom = new THREE.IcosahedronGeometry(1, 0);
-        const gemMat = new THREE.MeshPhysicalMaterial({
-          color: stone.color,
-          emissive: stone.color,
-          emissiveIntensity: 0.35,
-          roughness: 0.05,
-          metalness: 0.1,
-          transmission: 0.9,
-          thickness: 0.8,
-          ior: 1.6,
-          transparent: true,
-          opacity: 0.9
+        // Core chassis cylinder
+        const bodyGeom = new THREE.CylinderGeometry(0.2, 0.2, 0.15, 6);
+        const bodyMat = new THREE.MeshStandardMaterial({
+          color: 0x1e293b,
+          wireframe: true,
+          roughness: 0.8
         });
+        const mesh = new THREE.Mesh(bodyGeom, bodyMat);
+        drone.add(mesh);
 
-        const mesh = new THREE.Mesh(gemGeom, gemMat);
-        mesh.position.copy(stone.pos);
-        mesh.scale.setScalar(stone.scale);
-        
-        mesh.userData = {
-          basePos: stone.pos.clone(),
-          floatOffset: Math.random() * 100,
-          speed: stone.speed,
-          active: idx < collectedStonesCount,
-          colorHex: stone.color
-        };
+        // Ring fan guards
+        const fanGuardGeom = new THREE.TorusGeometry(0.35, 0.02, 4, 16);
+        const fanGuardMat = new THREE.MeshBasicMaterial({ color: 0x00f5ff, transparent: true, opacity: 0.3 });
+        const guard = new THREE.Mesh(fanGuardGeom, fanGuardMat);
+        guard.rotation.x = Math.PI / 2;
+        drone.add(guard);
 
-        const gemLight = new THREE.PointLight(stone.color, 1.8, 3);
-        mesh.add(gemLight);
+        // Flashing drone status light core
+        const lightCoreGeom = new THREE.SphereGeometry(0.06, 8, 8);
+        const lightCoreMat = new THREE.MeshBasicMaterial({ color: 0x00f5ff });
+        const lightCore = new THREE.Mesh(lightCoreGeom, lightCoreMat);
+        lightCore.position.y = 0.1;
+        drone.add(lightCore);
 
-        scene.add(mesh);
-        stoneMeshes.push(mesh);
+        const pointLight = new THREE.PointLight(0x00f5ff, 2.0, 4);
+        pointLight.position.copy(lightCore.position);
+        drone.add(pointLight);
+
+        dronesGroup.add(drone);
+        droneMeshes.push({
+          group: drone,
+          lightCoreMat,
+          pointLight,
+          baseY: data.pos.y,
+          bobOffset: data.bobOffset,
+          bobSpeed: data.bobSpeed
+        });
       });
 
-      // --- Interactive Holographic Visor ---
+      // --- Orbiting Stark Satellites ---
+      const satellitesGroup = new THREE.Group();
+      scene.add(satellitesGroup);
+
+      const satelliteGeom = new THREE.CylinderGeometry(0.04, 0.04, 0.22, 6);
+      const satelliteMat = new THREE.MeshStandardMaterial({ color: 0xffd84a, metalness: 0.95, roughness: 0.1 });
+      
+      const satelliteData = [
+        { radius: 11, speed: 0.2, angle: 0, tilt: Math.PI / 6 },
+        { radius: 14, speed: -0.15, angle: Math.PI, tilt: -Math.PI / 4 }
+      ];
+      const satellites = [];
+
+      satelliteData.forEach((sData) => {
+        const sat = new THREE.Mesh(satelliteGeom, satelliteMat);
+        
+        // Solar panel wings
+        const panelGeom = new THREE.BoxGeometry(0.35, 0.01, 0.1);
+        const panelMat = new THREE.MeshBasicMaterial({ color: 0x00f5ff, transparent: true, opacity: 0.5 });
+        const panels = new THREE.Mesh(panelGeom, panelMat);
+        sat.add(panels);
+
+        satellitesGroup.add(sat);
+        satellites.push({
+          mesh: sat,
+          radius: sData.radius,
+          speed: sData.speed,
+          angle: sData.angle,
+          tilt: sData.tilt
+        });
+      });
+
+      // --- Meteor Streaks System (Shooting Stars) ---
+      const meteorCount = 12;
+      const meteorGeometry = new THREE.BufferGeometry();
+      const meteorPositions = new Float32Array(meteorCount * 3);
+      
+      // Initialize out of screen bounds
+      for (let i = 0; i < meteorCount * 3; i += 3) {
+        meteorPositions[i] = -999;
+        meteorPositions[i + 1] = -999;
+        meteorPositions[i + 2] = -999;
+      }
+      meteorGeometry.setAttribute('position', new THREE.BufferAttribute(meteorPositions, 3));
+      
+      const meteorMat = new THREE.PointsMaterial({
+        color: 0xffffff,
+        size: 0.28,
+        transparent: true,
+        opacity: 0.9,
+        blending: THREE.AdditiveBlending
+      });
+      const meteors = new THREE.Points(meteorGeometry, meteorMat);
+      scene.add(meteors);
+
+      const meteorPool = [];
+      for (let i = 0; i < meteorCount; i++) {
+        meteorPool.push({
+          active: false,
+          x: 0, y: 0, z: 0,
+          vx: 0, vy: 0,
+          length: 0,
+          life: 0
+        });
+      }
+
+      // --- Holographic Face Helmet Visor (Central centerpiece) ---
       const helmetGroup = new THREE.Group();
-      helmetGroup.position.set(0, 0, -1);
+      helmetGroup.position.set(0, -0.4, -0.5);
       scene.add(helmetGroup);
 
       const faceBaseGeom = new THREE.SphereGeometry(1.6, 24, 16);
@@ -237,7 +275,7 @@ const SpaceCanvas = ({ collectedStonesCount = 0 }) => {
         const ringMat = new THREE.MeshBasicMaterial({
           color: ringColors[i % ringColors.length],
           transparent: true,
-          opacity: 0.25 - i * 0.05,
+          opacity: 0.22 - i * 0.04,
           blending: THREE.AdditiveBlending
         });
         const rMesh = new THREE.Mesh(ringGeom, ringMat);
@@ -266,21 +304,69 @@ const SpaceCanvas = ({ collectedStonesCount = 0 }) => {
       helmetGroup.add(eyeLeft);
       helmetGroup.add(eyeRight);
 
-      const eyeGlowLight = new THREE.PointLight(0xf7ffff, 1.5, 4);
-      eyeGlowLight.position.set(0, 0.45, 1.5);
-      helmetGroup.add(eyeGlowLight);
+      // --- Arc Reactor Mesh Model ---
+      const arcReactorGroup = new THREE.Group();
+      arcReactorGroup.position.set(-4.5, 2, -2);
+      scene.add(arcReactorGroup);
 
-      const facePlateGeom = new THREE.ConeGeometry(0.7, 1.2, 4);
-      const facePlateMat = new THREE.MeshStandardMaterial({
-        color: 0x1a2838,
-        wireframe: true,
-        transparent: true,
-        opacity: 0.3
+      const ringMat = new THREE.MeshStandardMaterial({
+        color: 0x3a4f5f,
+        metalness: 0.95,
+        roughness: 0.15
       });
-      const facePlate = new THREE.Mesh(facePlateGeom, facePlateMat);
-      facePlate.position.set(0, -0.2, 1.35);
-      facePlate.rotation.x = -Math.PI / 5;
-      helmetGroup.add(facePlate);
+      const reactorRing = new THREE.Mesh(new THREE.TorusGeometry(1.0, 0.07, 12, 48), ringMat);
+      arcReactorGroup.add(reactorRing);
+
+      const reactorCoreMat = new THREE.MeshBasicMaterial({
+        color: 0x00f5ff,
+        transparent: true,
+        opacity: 0.75,
+        blending: THREE.AdditiveBlending
+      });
+      const reactorCore = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.1, 24), reactorCoreMat);
+      reactorCore.rotation.x = Math.PI / 2;
+      arcReactorGroup.add(reactorCore);
+
+      // --- Floating Infinity Stones ---
+      const stonesData = [
+        { color: 0x00f5ff, pos: new THREE.Vector3(4.5, 2.5, -2), scale: 0.3, speed: 1.0 },
+        { color: 0xffd84a, pos: new THREE.Vector3(5.5, 0.5, -1), scale: 0.35, speed: 0.8 },
+        { color: 0xe62429, pos: new THREE.Vector3(4.2, -1.8, -2), scale: 0.28, speed: 1.2 },
+        { color: 0x7f5cff, pos: new THREE.Vector3(-4.8, -2, -3), scale: 0.32, speed: 0.9 },
+        { color: 0x00ff66, pos: new THREE.Vector3(-3.8, -0.5, -1), scale: 0.3, speed: 1.1 },
+        { color: 0xff9900, pos: new THREE.Vector3(-3.2, 1.8, -2), scale: 0.29, speed: 0.7 }
+      ];
+      const stoneMeshes = [];
+
+      stonesData.forEach((stone, idx) => {
+        const gemGeom = new THREE.IcosahedronGeometry(1, 0);
+        const gemMat = new THREE.MeshPhysicalMaterial({
+          color: stone.color,
+          emissive: stone.color,
+          emissiveIntensity: 0.3,
+          roughness: 0.05,
+          metalness: 0.1,
+          transmission: 0.9,
+          thickness: 0.8,
+          transparent: true,
+          opacity: idx < collectedStonesCount ? 0.95 : 0.4
+        });
+
+        const mesh = new THREE.Mesh(gemGeom, gemMat);
+        mesh.position.copy(stone.pos);
+        mesh.scale.setScalar(stone.scale);
+        
+        mesh.userData = {
+          basePos: stone.pos.clone(),
+          floatOffset: Math.random() * 100,
+          speed: stone.speed
+        };
+
+        const gemLight = new THREE.PointLight(stone.color, 1.5, 3);
+        mesh.add(gemLight);
+        scene.add(mesh);
+        stoneMeshes.push(mesh);
+      });
 
       // --- Interactions / Event Listeners ---
       const handleMouseMove = (e) => {
@@ -310,67 +396,101 @@ const SpaceCanvas = ({ collectedStonesCount = 0 }) => {
 
         const time = clock.getElapsedTime();
 
-        mouse.current.x += (mouse.current.targetX - mouse.current.x) * 0.08;
-        mouse.current.y += (mouse.current.targetY - mouse.current.y) * 0.08;
+        // Mouse Parallax coordinates interpolation
+        mouse.current.x += (mouse.current.targetX - mouse.current.x) * 0.075;
+        mouse.current.y += (mouse.current.targetY - mouse.current.y) * 0.075;
 
-        starField.rotation.y = time * 0.008;
-        starField.rotation.x = time * 0.003;
+        // Starfield slow rotation
+        starField.rotation.y = time * 0.005;
+        starField.rotation.x = time * 0.002;
 
-        nebulaMeshes.forEach((mesh, index) => {
-          mesh.rotation.y = time * (0.01 + index * 0.004);
-          mesh.rotation.z = time * (0.005 + index * 0.002);
+        // Floating Drones bobbing & blinking
+        droneMeshes.forEach((drone) => {
+          const bob = Math.sin(time * drone.bobSpeed + drone.bobOffset) * 0.25;
+          drone.group.position.y = drone.baseY + bob;
+          drone.group.rotation.y = time * 0.4;
+          
+          // flashing status light logic
+          const flash = Math.sin(time * 8.0 + drone.bobOffset) > 0;
+          drone.lightCoreMat.color.setHex(flash ? 0x00f5ff : 0x023d42);
+          drone.pointLight.intensity = flash ? 3.0 : 0.2;
         });
 
-        ring1.rotation.z = time * 0.25;
-        ring1.rotation.y = Math.sin(time * 0.1) * 0.2;
-        
-        ring2.rotation.z = -time * 0.4;
-        ring2.rotation.x = Math.PI / 4 + Math.cos(time * 0.15) * 0.15;
-        
-        ring3.rotation.z = time * 0.6;
-        
-        const pulseIntensity = 3.5 + Math.sin(time * 6) * 0.8;
-        coreLight.intensity = pulseIntensity;
-        coreMat.opacity = 0.5 + Math.sin(time * 6) * 0.3;
+        // Satellites orbital movement
+        satellites.forEach((sat) => {
+          sat.angle += sat.speed * 0.015;
+          sat.mesh.position.x = Math.cos(sat.angle) * sat.radius;
+          sat.mesh.position.z = Math.sin(sat.angle) * sat.radius;
+          sat.mesh.position.y = Math.sin(sat.angle * 0.5) * 3.0;
+          
+          sat.mesh.rotation.y += 0.015;
+          sat.mesh.rotation.x += 0.005;
+        });
 
+        // S.H.I.E.L.D Emblem rotation
+        shieldEmblemGroup.rotation.z = -time * 0.15;
+        shieldEmblemGroup.rotation.y = Math.sin(time * 0.2) * 0.3;
+
+        // Meteor streaks spawning and drawing
+        if (Math.random() < 0.04) {
+          // spawn new meteor streak
+          const inactive = meteorPool.find(m => !m.active);
+          if (inactive) {
+            inactive.active = true;
+            inactive.x = (Math.random() - 0.5) * 35;
+            inactive.y = 8 + Math.random() * 8;
+            inactive.z = -5 - Math.random() * 15;
+            inactive.vx = -12 - Math.random() * 8;
+            inactive.vy = -6 - Math.random() * 4;
+            inactive.life = 1.0;
+          }
+        }
+
+        const positions = meteorGeometry.attributes.position.array;
+        meteorPool.forEach((m, idx) => {
+          const i = idx * 3;
+          if (m.active) {
+            m.x += m.vx * 0.016;
+            m.y += m.vy * 0.016;
+            m.life -= 0.035;
+
+            positions[i] = m.x;
+            positions[i + 1] = m.y;
+            positions[i + 2] = m.z;
+
+            if (m.life <= 0) {
+              m.active = false;
+            }
+          } else {
+            positions[i] = -999;
+            positions[i + 1] = -999;
+            positions[i + 2] = -999;
+          }
+        });
+        meteorGeometry.attributes.position.needsUpdate = true;
+
+        // Volumetric Light Sweep modulation
+        sweepLight.position.x = Math.sin(time * 0.8) * 8;
+        sweepLight.position.y = Math.cos(time * 0.6) * 4;
+        
+        // Arc reactor rotation
+        reactorRing.rotation.y = time * 0.35;
+        reactorCoreMat.opacity = 0.55 + Math.sin(time * 8.0) * 0.25;
+
+        // floating infinity stones
         stoneMeshes.forEach((stone, index) => {
           const uData = stone.userData;
-          const speedMult = uData.speed;
-          
-          const floatY = Math.sin(time * 1.5 * speedMult + uData.floatOffset) * 0.15;
+          const floatY = Math.sin(time * 1.5 * uData.speed + uData.floatOffset) * 0.16;
           const targetPos = uData.basePos.clone();
           targetPos.y += floatY;
 
-          const mouse3D = new THREE.Vector3(
-            mouse.current.x * 5,
-            mouse.current.y * 3,
-            stone.position.z
-          );
-
-          const dist = stone.position.distanceTo(mouse3D);
-          if (dist < 2.5) {
-            const dir = new THREE.Vector3().subVectors(stone.position, mouse3D).normalize();
-            const force = (2.5 - dist) * 0.45;
-            targetPos.addScaledVector(dir, force);
-          }
-
           stone.position.lerp(targetPos, 0.08);
-
-          stone.rotation.y += 0.01 * speedMult;
-          stone.rotation.x += 0.005 * speedMult;
-
-          if (index < collectedStonesCount) {
-            stone.material.emissiveIntensity = 0.85 + Math.sin(time * 5 + index) * 0.3;
-            stone.material.opacity = 0.95;
-          } else {
-            stone.material.emissiveIntensity = 0.15;
-            stone.material.opacity = 0.4;
-          }
+          stone.rotation.y += 0.012 * uData.speed;
         });
 
+        // Central helmet rotation
         const targetHelmetRotY = mouse.current.x * 0.45;
         const targetHelmetRotX = -mouse.current.y * 0.3;
-        
         helmetGroup.rotation.y += (targetHelmetRotY - helmetGroup.rotation.y) * 0.05;
         helmetGroup.rotation.x += (targetHelmetRotX - helmetGroup.rotation.x) * 0.05;
 
@@ -378,34 +498,29 @@ const SpaceCanvas = ({ collectedStonesCount = 0 }) => {
           ring.rotation.z += 0.005 * (i + 1);
         });
 
-        if (Math.random() > 0.98) {
-          eyeMat.opacity = 0.2;
-          eyeGlowLight.intensity = 0.3;
+        // Visor eyes blinking
+        if (Math.random() > 0.985) {
+          eyeMat.opacity = 0.25;
         } else {
-          eyeMat.opacity = 0.8 + Math.sin(time * 12) * 0.15;
-          
-          const mouseCenterDist = Math.sqrt(mouse.current.x * mouse.current.x + mouse.current.y * mouse.current.y);
-          if (mouseCenterDist < 0.4) {
-            eyeMat.color.setHex(0xffd84a);
-            eyeGlowLight.color.setHex(0xffd84a);
-            eyeGlowLight.intensity = 3.5;
-            facePlate.position.y = -0.05;
-          } else {
-            eyeMat.color.setHex(0xf7ffff);
-            eyeGlowLight.color.setHex(0xf7ffff);
-            eyeGlowLight.intensity = 1.8 + Math.sin(time * 6) * 0.4;
-            facePlate.position.y = -0.2;
-          }
+          eyeMat.opacity = 0.8 + Math.sin(time * 10) * 0.12;
         }
 
-        const targetCamX = mouse.current.x * 0.8;
+        // --- 🎥 Dynamic Camera Drift & Breathing (Sprint 5) ---
+        const driftX = Math.sin(time * 0.4) * 0.18;
+        const driftY = Math.cos(time * 0.3) * 0.14;
+        const driftZ = Math.sin(time * 0.25) * 0.12; // breathing zoom drift
+
+        const targetCamX = mouse.current.x * 0.9;
         const targetCamY = mouse.current.y * 0.6;
         const scrollFactor = (scrollY.current / window.innerHeight) * 3;
-        const targetCamZ = 8 - scrollFactor;
+        const targetCamZ = 9.5 - scrollFactor;
 
-        camera.position.x += (targetCamX - camera.position.x) * 0.05;
-        camera.position.y += (targetCamY - camera.position.y) * 0.05;
-        camera.position.z += (targetCamZ - camera.position.z) * 0.05;
+        camera.position.x += (targetCamX + driftX - camera.position.x) * 0.05;
+        camera.position.y += (targetCamY + driftY - camera.position.y) * 0.05;
+        camera.position.z += (targetCamZ + driftZ - camera.position.z) * 0.05;
+
+        // Tiny camera orbital rotation tilt
+        camera.rotation.z += (Math.sin(time * 0.15) * 0.015 - camera.rotation.z) * 0.05;
 
         camera.lookAt(0, 0, 0);
 
@@ -416,7 +531,7 @@ const SpaceCanvas = ({ collectedStonesCount = 0 }) => {
 
       // Clean up WebGL Context
       return () => {
-        console.log('[DEBUG] SpaceCanvas: Disposing WebGL context and freeing GPU memory');
+        console.log('[DEBUG] SpaceCanvas: Disposing WebGL context');
         cancelAnimationFrame(frameId);
         window.removeEventListener('mousemove', handleMouseMove);
         window.removeEventListener('scroll', handleScroll);
@@ -424,9 +539,7 @@ const SpaceCanvas = ({ collectedStonesCount = 0 }) => {
 
         // Recursive traversal release
         scene.traverse((obj) => {
-          if (obj.geometry) {
-            obj.geometry.dispose();
-          }
+          if (obj.geometry) obj.geometry.dispose();
           if (obj.material) {
             if (Array.isArray(obj.material)) {
               obj.material.forEach((mat) => mat.dispose());
@@ -442,11 +555,10 @@ const SpaceCanvas = ({ collectedStonesCount = 0 }) => {
 
         renderer.dispose();
         scene.clear();
-        console.log('[DEBUG] SpaceCanvas: WebGL resources disposed cleanly');
       };
 
     } catch (err) {
-      console.error('[DEBUG] SpaceCanvas: WebGL Context failure occurred:', err);
+      console.error('[DEBUG] SpaceCanvas: WebGL context failure:', err);
       setWebglError(err.message || 'WebGL initialization failed');
     }
   }, [collectedStonesCount]);

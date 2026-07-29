@@ -370,6 +370,7 @@ const ShieldDashboard = ({ stones = {}, trophy = false, snapKey = false, onLaunc
                 className={`arcade-game-card ${stones['Space'] ? 'completed' : ''}`}
                 style={{ '--stone-color': '#00F5FF', '--stone-rgb': '0, 245, 255', height: '135px', padding: '10px' }}
                 onClick={() => onLaunchGame('Space')}
+                onMouseEnter={() => soundSystem.playTick()}
               >
                 <div className="arcade-card-icon" style={{ fontSize: '1.7rem' }}>🕷️</div>
                 <div className="arcade-card-name" style={{ fontSize: '0.85rem' }}>Spider-Man Swing</div>
@@ -383,6 +384,7 @@ const ShieldDashboard = ({ stones = {}, trophy = false, snapKey = false, onLaunc
                 className={`arcade-game-card ${stones['Mind'] ? 'completed' : ''}`}
                 style={{ '--stone-color': '#FFD84A', '--stone-rgb': '255, 216, 74', height: '135px', padding: '10px' }}
                 onClick={() => onLaunchGame('Mind')}
+                onMouseEnter={() => soundSystem.playTick()}
               >
                 <div className="arcade-card-icon" style={{ fontSize: '1.7rem' }}>⚡</div>
                 <div className="arcade-card-name" style={{ fontSize: '0.85rem' }}>Iron Man Flight</div>
@@ -396,6 +398,7 @@ const ShieldDashboard = ({ stones = {}, trophy = false, snapKey = false, onLaunc
                 className={`arcade-game-card ${stones['Reality'] ? 'completed' : ''}`}
                 style={{ '--stone-color': '#E62429', '--stone-rgb': '230, 36, 41', height: '135px', padding: '10px' }}
                 onClick={() => onLaunchGame('Reality')}
+                onMouseEnter={() => soundSystem.playTick()}
               >
                 <div className="arcade-card-icon" style={{ fontSize: '1.7rem' }}>🛡️</div>
                 <div className="arcade-card-name" style={{ fontSize: '0.85rem' }}>Cap Shield Combat</div>
@@ -409,6 +412,7 @@ const ShieldDashboard = ({ stones = {}, trophy = false, snapKey = false, onLaunc
                 className={`arcade-game-card ${stones['Power'] ? 'completed' : ''}`}
                 style={{ '--stone-color': '#7F5CFF', '--stone-rgb': '127, 92, 255', height: '135px', padding: '10px' }}
                 onClick={() => onLaunchGame('Power')}
+                onMouseEnter={() => soundSystem.playTick()}
               >
                 <div className="arcade-card-icon" style={{ fontSize: '1.7rem' }}>🏎️</div>
                 <div className="arcade-card-name" style={{ fontSize: '0.85rem' }}>Stark Kart</div>
@@ -422,6 +426,7 @@ const ShieldDashboard = ({ stones = {}, trophy = false, snapKey = false, onLaunc
                 className={`arcade-game-card ${stones['Time'] ? 'completed' : ''}`}
                 style={{ '--stone-color': '#00FF66', '--stone-rgb': '0, 255, 102', height: '135px', padding: '10px' }}
                 onClick={() => onLaunchGame('Time')}
+                onMouseEnter={() => soundSystem.playTick()}
               >
                 <div className="arcade-card-icon" style={{ fontSize: '1.7rem' }}>🔥</div>
                 <div className="arcade-card-name" style={{ fontSize: '0.85rem' }}>Ghost Rider</div>
@@ -435,6 +440,7 @@ const ShieldDashboard = ({ stones = {}, trophy = false, snapKey = false, onLaunc
                 className={`arcade-game-card ${stones['Soul'] ? 'completed' : ''}`}
                 style={{ '--stone-color': '#FF9900', '--stone-rgb': '255, 153, 0', height: '135px', padding: '10px' }}
                 onClick={() => onLaunchGame('Soul')}
+                onMouseEnter={() => soundSystem.playTick()}
               >
                 <div className="arcade-card-icon" style={{ fontSize: '1.7rem' }}>🌀</div>
                 <div className="arcade-card-name" style={{ fontSize: '0.85rem' }}>Portal Escape</div>
@@ -448,6 +454,7 @@ const ShieldDashboard = ({ stones = {}, trophy = false, snapKey = false, onLaunc
                 className={`arcade-game-card ${trophy ? 'completed' : ''}`}
                 style={{ '--stone-color': '#FFD84A', '--stone-rgb': '255, 216, 74', height: '135px', padding: '10px' }}
                 onClick={() => onLaunchGame('Legend')}
+                onMouseEnter={() => soundSystem.playTick()}
               >
                 <div className="arcade-card-icon" style={{ fontSize: '1.7rem' }}>🤖</div>
                 <div className="arcade-card-name" style={{ fontSize: '0.85rem' }}>Ultron Survival</div>
@@ -472,6 +479,7 @@ const ShieldDashboard = ({ stones = {}, trophy = false, snapKey = false, onLaunc
                   background: 'rgba(5, 7, 11, 0.85)'
                 }}
                 onClick={() => onLaunchGame('Final')}
+                onMouseEnter={() => soundSystem.playTick()}
               >
                 {snapKey ? `✅ THANOS DEFEATED [HI: ${highScores.Final}]` : '⚔️ AVENGERS FINAL BATTLE'}
               </button>

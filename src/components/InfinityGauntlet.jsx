@@ -26,17 +26,43 @@ const InfinityGauntlet = ({ stones = {}, snapKey = false, onSnapTrigger }) => {
               style={{
                 '--stone-color': stone.color,
                 '--stone-glow': stone.glow,
-                '--stone-rgb': stone.rgb
+                '--stone-rgb': stone.rgb,
+                position: 'relative'
               }}
               title={`${stone.name} Stone - ${collected ? 'SOCKETED' : 'DORMANT'}`}
             >
               {collected && (
-                <div 
-                  className="stone-gem"
-                  style={{
-                    '--stone-color': stone.color
-                  }}
-                />
+                <>
+                  <div 
+                    className="stone-gem"
+                    style={{
+                      '--stone-color': stone.color
+                    }}
+                  />
+                  {/* Procedural Animated electrical lightning paths (Sprint 5) */}
+                  <svg 
+                    width="100%" 
+                    height="100%" 
+                    style={{ 
+                      position: 'absolute', 
+                      top: 0, 
+                      left: 0, 
+                      pointerEvents: 'none', 
+                      zIndex: 8 
+                    }}
+                  >
+                    <path
+                      d="M 5 22 L 18 10 L 22 28 L 32 15"
+                      fill="none"
+                      stroke={stone.color}
+                      strokeWidth="1.2"
+                      opacity="0.85"
+                      style={{
+                        animation: 'flickerArc 0.25s infinite steps(2)'
+                      }}
+                    />
+                  </svg>
+                </>
               )}
             </div>
           );
