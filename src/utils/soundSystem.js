@@ -9,6 +9,15 @@ class SoundSystem {
     this.ambientOsc2 = null;
     this.ambientFilter = null;
     this.muted = false;
+
+    // Procedural wind nodes
+    this.windNode = null;
+    this.windFilter = null;
+    this.windGain = null;
+    this.windLfo = null;
+
+    // Heartbeat timers
+    this.heartbeatTimer = null;
   }
 
   init() {
@@ -81,6 +90,104 @@ class SoundSystem {
       lfo.start();
     } catch (e) {
       console.error("Ambient hum failed to start:", e);
+    }
+  }
+
+  // Skyline Wind Ambience
+  startWindAmbience() {
+    if (!this.ctx || this.muted || this.windNode) return;
+    try {
+      const bufferSize = this.ctx.sampleRate * 2.0;
+      const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        data[i] = Math.random() * 2 - 1;
+      }
+
+      this.windNode = this.ctx.createBufferSource();
+      this.windNode.buffer = buffer;
+      this.windNode.loop = true;
+
+      this.windFilter = this.ctx.createBiquadFilter();
+      this.windFilter.type = 'lowpass';
+      this.windFilter.frequency.setValueAtTime(350, this.ctx.currentTime);
+
+      this.windGain = this.ctx.createGain();
+      this.windGain.gain.setValueAtTime(0.04, this.ctx.currentTime);
+
+      // Modulate wind cutoff frequency slowly
+      this.windLfo = this.ctx.createOscillator();
+      this.windLfo.type = 'sine';
+      this.windLfo.frequency.setValueAtTime(0.15, this.ctx.currentTime);
+
+      const lfoGain = this.ctx.createGain();
+      lfoGain.gain.setValueAtTime(150, this.ctx.currentTime);
+
+      this.windLfo.connect(lfoGain);
+      lfoGain.connect(this.windFilter.frequency);
+
+      this.windNode.connect(this.windFilter);
+      this.windFilter.connect(this.windGain);
+      this.windGain.connect(this.masterVolume);
+
+      this.windNode.start();
+      this.windLfo.start();
+      console.log('[DEBUG] SoundSystem: Ambient wind loop started');
+    } catch (e) {
+      console.error("Failed to start wind ambience:", e);
+    }
+  }
+
+  stopWindAmbience() {
+    if (this.windNode) {
+      try {
+        this.windNode.stop();
+        this.windLfo.stop();
+      } catch (e) {}
+      this.windNode = null;
+      this.windLfo = null;
+      console.log('[DEBUG] SoundSystem: Ambient wind loop stopped');
+    }
+  }
+
+  // Low-Health Warning Heartbeat
+  startHeartbeat() {
+    if (!this.ctx || this.muted || this.heartbeatTimer) return;
+    console.log('[DEBUG] SoundSystem: Low health heartbeat alert active');
+    
+    const triggerBeep = () => {
+      if (this.muted || !this.ctx) return;
+      const now = this.ctx.currentTime;
+      
+      const thump = (timeOffset) => {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(80, now + timeOffset);
+        osc.frequency.exponentialRampToValueAtTime(30, now + timeOffset + 0.15);
+
+        gain.gain.setValueAtTime(0.35, now + timeOffset);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + timeOffset + 0.15);
+
+        osc.connect(gain);
+        gain.connect(this.masterVolume);
+        osc.start(now + timeOffset);
+        osc.stop(now + timeOffset + 0.16);
+      };
+      
+      thump(0);
+      thump(0.22);
+    };
+
+    triggerBeep();
+    this.heartbeatTimer = setInterval(triggerBeep, 1100);
+  }
+
+  stopHeartbeat() {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+      console.log('[DEBUG] SoundSystem: Heartbeat alert stopped');
     }
   }
 
@@ -221,7 +328,6 @@ class SoundSystem {
     
     bassOsc.connect(bassFilter);
     bassFilter.connect(bassGain);
-    gain.connect(this.masterVolume); // wait, it should connect to masterVolume directly, or let's connect bassGain to masterVolume
     bassGain.connect(this.masterVolume);
     
     bassOsc.start(now);

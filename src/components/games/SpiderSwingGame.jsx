@@ -1,56 +1,97 @@
 import React, { useEffect, useRef, useState } from 'react';
 import soundSystem from '../../utils/soundSystem';
 
-const SpiderSwingGame = ({ onWin, onLoss, onScoreUpdate, onComboUpdate, onHealthUpdate, isPaused }) => {
+const SpiderSwingGame = ({ 
+  difficulty = 'Normal', 
+  onWin, 
+  onLoss, 
+  onScoreUpdate, 
+  onComboUpdate, 
+  onHealthUpdate, 
+  isPaused 
+}) => {
   const canvasRef = useRef(null);
-  
-  // Game states
+
+  // States
   const [score, setScore] = useState(0);
   const [tokens, setTokens] = useState(0);
   const [health, setHealth] = useState(100);
   const [distance, setDistance] = useState(0);
+  const [combo, setCombo] = useState(1);
+  const [maxCombo, setMaxCombo] = useState(1);
   const [gamePhase, setGamePhase] = useState('playing'); // playing -> victory_landing -> complete
+  
+  // F.R.I.D.A.Y subtitles
+  const [fridayText, setFridayText] = useState('F.R.I.D.A.Y.: Secure connection established. Commencing swing simulation.');
+
+  // Difficulty Settings Map
+  const difficultySettings = {
+    Easy: { baseSpeed: 3.2, droneTimer: 2200, multiplier: 1.0, maxTime: 55 },
+    Normal: { baseSpeed: 4.8, droneTimer: 1500, multiplier: 1.5, maxTime: 40 },
+    Hard: { baseSpeed: 6.5, droneTimer: 850, multiplier: 2.5, maxTime: 30 }
+  };
+
+  const settings = difficultySettings[difficulty] || difficultySettings.Normal;
 
   const player = useRef({
     x: 0,
-    y: 140,
+    y: 135,
     targetX: 0,
     lane: 1, // 0 = Left, 1 = Center, 2 = Right
-    radius: 12,
+    radius: 11,
     invulnerable: false,
     invulnTimer: 0,
     flashState: false,
-    webSide: 0, // 0 = left hand web, 1 = right hand web
+    webSide: 0,
     webLength: 0
   });
 
-  const collectibles = useRef([]); // { x, y, lane, type, active }
-  const drones = useRef([]); // { x, y, lane, vx, laserTimer, active }
-  const lasers = useRef([]); // { x, y, active }
+  const collectibles = useRef([]);
+  const drones = useRef([]);
+  const lasers = useRef([]);
   const particles = useRef([]);
   const buildings = useRef([]);
 
-  // Camera settings
+  // Camera and visual dynamics
   const cameraShake = useRef(0);
-  const scrollSpeed = useRef(4.5);
+  const cameraZoom = useRef(1.0);
+  const zoomTimer = useRef(0);
+  const orbitAngle = useRef(0);
+  const scrollSpeed = useRef(settings.baseSpeed);
   const maxDistance = 1500;
-  
-  // Swipe controls tracking
+
+  // Floating Combo notification text
+  const comboAlert = useRef({ text: '', duration: 0, scale: 1 });
   const touchStart = useRef({ x: 0, y: 0 });
 
-  // Refs for state values inside animation loop
+  // Sync state refs for animations
   const scoreRef = useRef(0);
   const tokensRef = useRef(0);
   const healthRef = useRef(100);
   const distanceRef = useRef(0);
+  const comboRef = useRef(1);
+  const maxComboRef = useRef(1);
+
   scoreRef.current = score;
   tokensRef.current = tokens;
   healthRef.current = health;
   distanceRef.current = distance;
+  comboRef.current = combo;
+  maxComboRef.current = maxCombo;
 
-  // 1. Controls listener - registered EXACTLY ONCE on mount
+  // Audio start & stop
   useEffect(() => {
-    console.log('[DEBUG] SpiderSwingGame: Controls attached');
+    soundSystem.startWindAmbience();
+
+    return () => {
+      soundSystem.stopWindAmbience();
+      soundSystem.stopHeartbeat();
+    };
+  }, []);
+
+  // Controls configuration
+  useEffect(() => {
+    console.log('[DEBUG] SpiderSwingGame: Controls activated');
     const handleKeyDown = (e) => {
       if (isPaused || gamePhase !== 'playing') return;
       const p = player.current;
@@ -72,12 +113,11 @@ const SpiderSwingGame = ({ onWin, onLoss, onScoreUpdate, onComboUpdate, onHealth
     window.addEventListener('keydown', handleKeyDown);
 
     return () => {
-      console.log('[DEBUG] SpiderSwingGame: Controls detached');
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [isPaused, gamePhase]);
 
-  // 2. Main Game Loop
+  // Main render loops
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -85,15 +125,12 @@ const SpiderSwingGame = ({ onWin, onLoss, onScoreUpdate, onComboUpdate, onHealth
     canvas.width = canvas.parentElement.clientWidth;
     canvas.height = 180;
 
-    // Center player initially
     const laneWidth = canvas.width / 4;
     player.current.x = laneWidth * 2;
     player.current.targetX = laneWidth * 2;
 
-    // Generate initial buildings background
     generateBuildings(canvas);
 
-    console.log('[DEBUG] SpiderSwingGame: Main physics loop starting');
     let frameId;
     let spawnTimer = 0;
 
@@ -101,54 +138,66 @@ const SpiderSwingGame = ({ onWin, onLoss, onScoreUpdate, onComboUpdate, onHealth
       const ctx = canvas.getContext('2d');
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Apply camera shake if hit
       ctx.save();
+      
+      // 1. Camera Shake
       if (cameraShake.current > 0) {
         const dx = (Math.random() - 0.5) * cameraShake.current;
         const dy = (Math.random() - 0.5) * cameraShake.current;
         ctx.translate(dx, dy);
-        cameraShake.current -= 0.55;
+        cameraShake.current -= 0.5;
       }
 
-      // Draw background space sky
+      // 2. Camera Zoom (on token collection)
+      if (zoomTimer.current > 0) {
+        cameraZoom.current = 1.05;
+        zoomTimer.current--;
+      } else {
+        cameraZoom.current = 1.0;
+      }
+
+      if (cameraZoom.current !== 1.0) {
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        ctx.scale(cameraZoom.current, cameraZoom.current);
+        ctx.translate(-canvas.width / 2, -canvas.height / 2);
+      }
+
+      // Draw background Space sky
       ctx.fillStyle = '#05070b';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Draw scrolling buildings parallax
+      // Draw Skyline parallax
       drawBuildings(ctx, canvas);
 
       if (!isPaused && gamePhase === 'playing') {
         updatePhysics(canvas);
 
-        // Spawn logic
         spawnTimer += 16.6;
-        if (spawnTimer > 1300) {
+        if (spawnTimer > 1100) {
           spawnRandomElements(canvas);
           spawnTimer = 0;
         }
       }
 
-      // Draw webs
       if (gamePhase === 'playing') {
         drawWebs(ctx, canvas);
       }
 
-      // Draw Collectibles
       drawCollectibles(ctx, canvas);
-
-      // Draw Drones & Lasers
       drawDrones(ctx, canvas);
 
-      // Draw Spider-Man
-      drawPlayer(ctx);
+      // Draw camera circular grid orbit during victory landing
+      if (gamePhase === 'victory_landing') {
+        drawVictoryOrbit(ctx, canvas);
+      }
 
-      // Draw particles
+      drawPlayer(ctx);
       drawParticles(ctx);
 
-      // Draw progress bar overlay
-      drawProgressBar(ctx, canvas);
+      // Draw float alert notifications on canvas
+      drawComboAlert(ctx, canvas);
 
-      ctx.restore(); // restore camera shake translation
+      ctx.restore();
 
       frameId = requestAnimationFrame(render);
     };
@@ -156,10 +205,9 @@ const SpiderSwingGame = ({ onWin, onLoss, onScoreUpdate, onComboUpdate, onHealth
     render();
 
     return () => {
-      console.log('[DEBUG] SpiderSwingGame: Terminating animation loops');
       cancelAnimationFrame(frameId);
     };
-  }, [isPaused, gamePhase]);
+  }, [isPaused, gamePhase, difficulty]);
 
   const generateBuildings = (canvas) => {
     buildings.current = [];
@@ -167,20 +215,20 @@ const SpiderSwingGame = ({ onWin, onLoss, onScoreUpdate, onComboUpdate, onHealth
       buildings.current.push({
         x: i * (canvas.width / 5),
         y: 40 + Math.random() * 50,
-        w: 45 + Math.random() * 30,
+        w: 50 + Math.random() * 25,
         h: 150
       });
     }
   };
 
   const drawBuildings = (ctx, canvas) => {
-    ctx.fillStyle = '#0d131f';
+    ctx.fillStyle = '#0a101d';
     buildings.current.forEach((b) => {
       if (gamePhase === 'playing' && !isPaused) {
-        b.y += scrollSpeed.current * 0.3; // parallax scroll
+        b.y += scrollSpeed.current * 0.25;
         if (b.y > canvas.height) {
-          b.y = -40;
-          b.w = 45 + Math.random() * 30;
+          b.y = -50;
+          b.w = 50 + Math.random() * 25;
         }
       }
       ctx.fillRect(b.x, b.y, b.w, b.h);
@@ -189,40 +237,19 @@ const SpiderSwingGame = ({ onWin, onLoss, onScoreUpdate, onComboUpdate, onHealth
     });
   };
 
-  const drawProgressBar = (ctx, canvas) => {
-    const pct = Math.min(distanceRef.current / maxDistance, 1);
-    ctx.save();
-    ctx.fillStyle = 'rgba(255,255,255,0.06)';
-    ctx.fillRect(10, 10, canvas.width - 20, 6);
-    
-    ctx.fillStyle = '#00F5FF';
-    ctx.shadowBlur = 8;
-    ctx.shadowColor = '#00F5FF';
-    ctx.fillRect(10, 10, (canvas.width - 20) * pct, 6);
-    
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 8px sans-serif';
-    ctx.textAlign = 'right';
-    ctx.fillText(`${Math.round(pct * 100)}% DIST`, canvas.width - 10, 24);
-    ctx.restore();
-  };
-
   const drawWebs = (ctx, canvas) => {
     const p = player.current;
-    
-    // Animate web line drawing
     if (p.webLength < 1) p.webLength += 0.08;
 
     ctx.save();
-    ctx.strokeStyle = '#FFFFFF';
-    ctx.shadowBlur = 6;
-    ctx.shadowColor = '#FFFFFF';
-    ctx.lineWidth = 1.6;
+    ctx.strokeStyle = '#ffffff';
+    ctx.shadowBlur = 8;
+    ctx.shadowColor = '#ffffff';
+    ctx.lineWidth = 1.8;
 
     ctx.beginPath();
     ctx.moveTo(p.x, p.y - 8);
-    // Draw web anchor path to left or right screen ceiling coordinates
-    const anchorX = p.webSide === 0 ? 0 : canvas.width;
+    const anchorX = p.webSide === 0 ? 10 : canvas.width - 10;
     const targetAnchorX = p.x + (anchorX - p.x) * p.webLength;
     const targetAnchorY = p.y - 8 + (0 - (p.y - 8)) * p.webLength;
 
@@ -233,33 +260,32 @@ const SpiderSwingGame = ({ onWin, onLoss, onScoreUpdate, onComboUpdate, onHealth
 
   const drawPlayer = (ctx) => {
     const p = player.current;
-
-    // Flash player when invulnerable
     if (p.invulnerable) {
       p.flashState = !p.flashState;
-      if (p.flashState) return; // skip drawing frame
+      if (p.flashState) return;
     }
 
     ctx.save();
     ctx.translate(p.x, p.y);
 
     if (gamePhase === 'victory_landing') {
-      // Classic Crouching Hero pose visual sticking out
+      // Crouching Hero landing pose drawing
       ctx.fillStyle = '#E62429';
       ctx.shadowBlur = 15;
       ctx.shadowColor = '#E62429';
-      // crouch body
+      
+      // torso crouch
       ctx.beginPath();
-      ctx.moveTo(-10, 10);
+      ctx.moveTo(-10, 8);
       ctx.lineTo(0, -10);
-      ctx.lineTo(10, 10);
+      ctx.lineTo(10, 8);
       ctx.closePath();
       ctx.fill();
 
       // blue legs
       ctx.fillStyle = '#00F5FF';
-      ctx.fillRect(-12, 10, 6, 4);
-      ctx.fillRect(6, 10, 6, 4);
+      ctx.fillRect(-11, 8, 5, 4);
+      ctx.fillRect(6, 8, 5, 4);
 
       // eyes
       ctx.fillStyle = '#FFFFFF';
@@ -268,7 +294,7 @@ const SpiderSwingGame = ({ onWin, onLoss, onScoreUpdate, onComboUpdate, onHealth
       ctx.arc(3, -2, 2.5, 0, Math.PI * 2);
       ctx.fill();
     } else {
-      // Swinging / Flying circle avatar representation
+      // Standard swing round model representation
       ctx.fillStyle = '#E62429';
       ctx.shadowBlur = 10;
       ctx.shadowColor = '#E62429';
@@ -276,9 +302,9 @@ const SpiderSwingGame = ({ onWin, onLoss, onScoreUpdate, onComboUpdate, onHealth
       ctx.arc(0, 0, p.radius, 0, Math.PI * 2);
       ctx.fill();
 
-      // Spider insignia
+      // spider suit web pattern
       ctx.strokeStyle = '#05070b';
-      ctx.lineWidth = 1.2;
+      ctx.lineWidth = 1.0;
       ctx.beginPath();
       ctx.moveTo(-p.radius, 0);
       ctx.lineTo(p.radius, 0);
@@ -286,7 +312,7 @@ const SpiderSwingGame = ({ onWin, onLoss, onScoreUpdate, onComboUpdate, onHealth
       ctx.lineTo(0, p.radius);
       ctx.stroke();
 
-      // white eyes
+      // eyes
       ctx.fillStyle = '#FFFFFF';
       ctx.beginPath();
       ctx.ellipse(-4, -3, 3, 2, -Math.PI / 4, 0, Math.PI * 2);
@@ -301,19 +327,18 @@ const SpiderSwingGame = ({ onWin, onLoss, onScoreUpdate, onComboUpdate, onHealth
     ctx.save();
     collectibles.current.forEach((col) => {
       if (!col.active) return;
-      
-      const bounce = Math.sin(Date.now() * 0.01 + col.y) * 3;
-      ctx.shadowBlur = 10;
+      const pulse = Math.sin(Date.now() * 0.012 + col.y) * 3;
+      ctx.shadowBlur = 12;
       ctx.shadowColor = '#FFD84A';
       ctx.fillStyle = '#FFD84A';
       ctx.beginPath();
-      ctx.arc(col.x, col.y + bounce, 7, 0, Math.PI * 2);
+      ctx.arc(col.x, col.y + pulse, 7.5, 0, Math.PI * 2);
       ctx.fill();
-      
+
       ctx.fillStyle = '#05070B';
       ctx.font = 'bold 8px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('S', col.x, col.y + bounce + 3);
+      ctx.fillText('S', col.x, col.y + pulse + 3);
     });
     ctx.restore();
   };
@@ -321,30 +346,31 @@ const SpiderSwingGame = ({ onWin, onLoss, onScoreUpdate, onComboUpdate, onHealth
   const drawDrones = (ctx, canvas) => {
     ctx.save();
     
-    // Draw lasers
+    // Lasers
     ctx.fillStyle = '#00ff66';
     ctx.shadowBlur = 8;
     ctx.shadowColor = '#00ff66';
     lasers.current.forEach((l) => {
       if (!l.active) return;
       ctx.beginPath();
-      ctx.arc(l.x, l.y, 3.5, 0, Math.PI * 2);
+      ctx.arc(l.x, l.y, 4, 0, Math.PI * 2);
       ctx.fill();
     });
 
-    // Draw Drones
+    // Patrol Drones
     drones.current.forEach((dr) => {
       if (!dr.active) return;
-
-      ctx.fillStyle = '#5c3a21'; // Oscorp dark metallic
+      ctx.fillStyle = '#1e293b';
       ctx.strokeStyle = '#e62429';
-      ctx.lineWidth = 1;
+      ctx.lineWidth = 1.2;
+      ctx.shadowBlur = 8;
+      ctx.shadowColor = '#e62429';
       ctx.beginPath();
       ctx.rect(dr.x - 12, dr.y - 7, 24, 14);
       ctx.fill();
       ctx.stroke();
 
-      // glowing green sensor eye
+      // sensor core
       ctx.fillStyle = '#00ff66';
       ctx.beginPath();
       ctx.arc(dr.x, dr.y, 2.5, 0, Math.PI * 2);
@@ -354,19 +380,62 @@ const SpiderSwingGame = ({ onWin, onLoss, onScoreUpdate, onComboUpdate, onHealth
     ctx.restore();
   };
 
+  const drawVictoryOrbit = (ctx, canvas) => {
+    const p = player.current;
+    orbitAngle.current += 0.045;
+
+    ctx.save();
+    ctx.strokeStyle = 'rgba(0, 245, 255, 0.4)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([5, 8]);
+    
+    // Draw concentric rotating grid lines around Spider-Man
+    ctx.beginPath();
+    ctx.arc(p.x, p.y + 4, 25, orbitAngle.current, orbitAngle.current + Math.PI * 2);
+    ctx.stroke();
+    
+    ctx.strokeStyle = 'rgba(255, 216, 74, 0.3)';
+    ctx.beginPath();
+    ctx.arc(p.x, p.y + 4, 38, -orbitAngle.current, -orbitAngle.current + Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  };
+
+  const drawComboAlert = (ctx, canvas) => {
+    const alert = comboAlert.current;
+    if (alert.duration > 0) {
+      alert.duration--;
+      ctx.save();
+      ctx.fillStyle = '#FFD84A';
+      ctx.shadowBlur = 12;
+      ctx.shadowColor = '#FFD84A';
+      ctx.font = 'black 14px sans-serif';
+      ctx.textAlign = 'center';
+      
+      const bounce = Math.sin(alert.duration * 0.15) * 4;
+      ctx.fillText(alert.text, canvas.width / 2, canvas.height / 2 - 30 + bounce);
+      ctx.restore();
+    }
+  };
+
   const updatePhysics = (canvas) => {
     const p = player.current;
-    
-    // Smooth lane coordinates lerping
+
+    // Lane positioning
     const laneWidth = canvas.width / 4;
     p.targetX = laneWidth * (p.lane + 1);
-    p.x += (p.targetX - p.x) * 0.15;
+    p.x += (p.targetX - p.x) * 0.16;
 
-    // Advance distance
+    // Advance distance status
     const nextDistance = distanceRef.current + scrollSpeed.current * 0.08;
     setDistance(nextDistance);
 
-    // Invulnerable timer decay
+    // Halfway check announcement
+    if (nextDistance >= maxDistance * 0.5 && distanceRef.current < maxDistance * 0.5) {
+      setFridayText('F.R.I.D.A.Y.: Halfway point coordinates achieved. Enhancing local spatial grids.');
+      soundSystem.playPortalSwoosh();
+    }
+
     if (p.invulnerable) {
       p.invulnTimer -= 16.6;
       if (p.invulnTimer <= 0) {
@@ -374,53 +443,58 @@ const SpiderSwingGame = ({ onWin, onLoss, onScoreUpdate, onComboUpdate, onHealth
       }
     }
 
-    // Scroll collectibles down
+    // Scroll tokens
     collectibles.current.forEach((col) => {
       if (!col.active) return;
       col.y += scrollSpeed.current;
 
-      // collide check
       const dist = Math.hypot(p.x - col.x, p.y - col.y);
-      if (dist < p.radius + 7) {
+      if (dist < p.radius + 8.5) {
         col.active = false;
+        
         soundSystem.playTick();
         triggerExplosion(col.x, col.y, '#FFD84A');
+        
+        zoomTimer.current = 6; // trigger brief zoom in
 
         const nextTokens = tokensRef.current + 1;
-        const nextScore = scoreRef.current + 10;
-        
+        const nextCombo = comboRef.current + 1;
+        const scoreGain = Math.round(10 * settings.multiplier * (nextCombo >= 8 ? 2.5 : nextCombo >= 4 ? 1.8 : 1.0));
+        const nextScore = scoreRef.current + scoreGain;
+
         setTokens(nextTokens);
+        setCombo(nextCombo);
         setScore(nextScore);
-        
-        // Sync outer managers
+
+        if (nextCombo > maxComboRef.current) setMaxCombo(nextCombo);
+
         onScoreUpdate(nextScore);
         onComboUpdate(nextTokens);
 
-        // Flash canvas briefly (visual splash feedback)
-        canvasRef.current.style.filter = 'brightness(1.5)';
+        // Check milestones
+        triggerComboAlert(nextCombo);
+
+        // flash brief brightness feedback
+        canvasRef.current.style.filter = 'brightness(1.4)';
         setTimeout(() => {
           if (canvasRef.current) canvasRef.current.style.filter = 'none';
-        }, 80);
+        }, 70);
       }
     });
 
-    // Scroll Drones and handle laser shooting
+    // Scroll drones and fire lasers
     drones.current.forEach((dr) => {
       if (!dr.active) return;
       dr.y += scrollSpeed.current * 0.85;
 
-      // Move horizontally (patrol)
       dr.x += dr.vx;
       const laneWidth = canvas.width / 4;
       const leftBound = laneWidth * 0.8;
       const rightBound = laneWidth * 3.2;
-      if (dr.x < leftBound || dr.x > rightBound) {
-        dr.vx = -dr.vx;
-      }
+      if (dr.x < leftBound || dr.x > rightBound) dr.vx = -dr.vx;
 
-      // Shoot lasers down
       dr.laserTimer += 16.6;
-      if (dr.laserTimer > 1800) {
+      if (dr.laserTimer > settings.droneTimer) {
         lasers.current.push({
           x: dr.x,
           y: dr.y + 10,
@@ -429,43 +503,45 @@ const SpiderSwingGame = ({ onWin, onLoss, onScoreUpdate, onComboUpdate, onHealth
         dr.laserTimer = 0;
       }
 
-      // Collide check
       const dist = Math.hypot(p.x - dr.x, p.y - dr.y);
-      if (dist < p.radius + 11 && !p.invulnerable) {
+      if (dist < p.radius + 12 && !p.invulnerable) {
         dr.active = false;
-        triggerHit();
+        triggerDamageHit();
       }
     });
 
     // Move lasers
     lasers.current.forEach((l) => {
       if (!l.active) return;
-      l.y += scrollSpeed.current * 1.5;
+      l.y += scrollSpeed.current * 1.6;
 
-      // collide check
       const dist = Math.hypot(p.x - l.x, p.y - l.y);
-      if (dist < p.radius + 5.5 && !p.invulnerable) {
+      if (dist < p.radius + 6 && !p.invulnerable) {
         l.active = false;
-        triggerHit();
+        triggerDamageHit();
       }
     });
 
-    // Clean inactive offscreen arrays
+    // Clean offscreen items
     collectibles.current = collectibles.current.filter((c) => c.y < canvas.height + 20 && c.active);
     drones.current = drones.current.filter((d) => d.y < canvas.height + 20 && d.active);
     lasers.current = lasers.current.filter((l) => l.y < canvas.height + 20 && l.active);
 
-    // Check Victory
+    // Verify Victory
     if (nextDistance >= maxDistance) {
-      triggerVictory(canvas);
+      triggerVictoryLanding(canvas);
     }
   };
 
-  const triggerHit = () => {
+  const triggerDamageHit = () => {
     soundSystem.playClick();
-    cameraShake.current = 15; // activate camera shake translation
+    cameraShake.current = 18; // active canvas shake translation
     
-    // Set invulnerable and timers
+    // reset combo and warn
+    setCombo(1);
+    onComboUpdate(1);
+    setFridayText('F.R.I.D.A.Y.: WARNING! Suit displacement grids fluctuating.');
+
     const p = player.current;
     p.invulnerable = true;
     p.invulnTimer = 1500;
@@ -474,9 +550,33 @@ const SpiderSwingGame = ({ onWin, onLoss, onScoreUpdate, onComboUpdate, onHealth
     setHealth(nextHealth);
     onHealthUpdate(nextHealth);
 
+    // Heartbeat double Beep sound on low health
+    if (nextHealth < 35 && nextHealth > 0) {
+      soundSystem.startHeartbeat();
+      setFridayText('F.R.I.D.A.Y.: WARNING! Biological signatures collapsing. Clear anomalies!');
+    }
+
     if (nextHealth <= 0) {
-      console.log('[DEBUG] SpiderSwingGame: Defeat coordinates triggered');
+      console.log('[DEBUG] SpiderSwingGame: Defeat health depleted');
+      soundSystem.stopHeartbeat();
       onLoss();
+    }
+  };
+
+  const triggerComboAlert = (currentCombo) => {
+    const alert = comboAlert.current;
+    if (currentCombo === 3) {
+      alert.text = 'COMBO x3 // AMAZING';
+      alert.duration = 45;
+      setFridayText('F.R.I.D.A.Y.: Spatial coordinate swing vectors are optimal.');
+    } else if (currentCombo === 6) {
+      alert.text = 'COMBO x6 // INCREDIBLE';
+      alert.duration = 50;
+      setFridayText('F.R.I.D.A.Y.: Dynamic trajectory accuracy in high profiles.');
+    } else if (currentCombo === 10) {
+      alert.text = 'COMBO x10 // LEGENDARY';
+      alert.duration = 60;
+      setFridayText('F.R.I.D.A.Y.: Agent Garv biometrics matched to legend levels.');
     }
   };
 
@@ -485,8 +585,7 @@ const SpiderSwingGame = ({ onWin, onLoss, onScoreUpdate, onComboUpdate, onHealth
     const laneWidth = canvas.width / 4;
     const spawnX = laneWidth * (lane + 1);
 
-    if (Math.random() > 0.45) {
-      // Spawn token
+    if (Math.random() > 0.42) {
       collectibles.current.push({
         x: spawnX,
         y: -15,
@@ -494,41 +593,59 @@ const SpiderSwingGame = ({ onWin, onLoss, onScoreUpdate, onComboUpdate, onHealth
         active: true
       });
     } else {
-      // Spawn patrol drone
       drones.current.push({
         x: spawnX,
         y: -20,
         lane,
-        vx: (Math.random() - 0.5) * 2,
-        laserTimer: Math.random() * 1000,
+        vx: (Math.random() - 0.5) * 2.2,
+        laserTimer: Math.random() * 700,
         active: true
       });
     }
   };
 
-  const triggerVictory = (canvas) => {
+  const triggerVictoryLanding = (canvas) => {
     setGamePhase('victory_landing');
-    console.log('[DEBUG] SpiderSwingGame: Entering victory landing phase');
+    console.log('[DEBUG] SpiderSwingGame: Landing victory coordinates initiated');
+    setFridayText('F.R.I.D.A.Y.: Target coordinates reached. Commencing landing sequences.');
+    
+    soundSystem.stopHeartbeat();
+    soundSystem.stopWindAmbience();
 
-    // Position player crouching in center
     const p = player.current;
-    gsap.to(p, {
-      x: canvas.width / 2,
-      y: canvas.height - 35,
-      duration: 1.2,
-      ease: 'power3.out',
-      onComplete: () => {
-        // Play final snap trigger and complete stats
-        soundSystem.playAvengersFanfare();
+    
+    // Slow down speed
+    scrollSpeed.current = 1.0;
+
+    // Animate Spider-Man lerping to center bottom
+    const tl = window.gsap ? window.gsap.timeline() : null;
+    if (tl) {
+      tl.to(p, {
+        x: canvas.width / 2,
+        y: canvas.height - 35,
+        duration: 1.5,
+        ease: 'power3.out',
+        onComplete: () => {
+          setFridayText('F.R.I.D.A.Y.: Mission complete. Excellent work, Agent Garv.');
+          setTimeout(() => {
+            onWin(scoreRef.current);
+          }, 1200);
+        }
+      });
+    } else {
+      // Manual lerp fallback
+      p.x = canvas.width / 2;
+      p.y = canvas.height - 35;
+      setTimeout(() => {
         onWin(scoreRef.current);
-      }
-    });
+      }, 1200);
+    }
   };
 
   const triggerExplosion = (x, y, color) => {
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 11; i++) {
       const angle = Math.random() * Math.PI * 2;
-      const speed = 1 + Math.random() * 3;
+      const speed = 1.2 + Math.random() * 3.5;
       particles.current.push({
         x,
         y,
@@ -537,7 +654,7 @@ const SpiderSwingGame = ({ onWin, onLoss, onScoreUpdate, onComboUpdate, onHealth
         size: 1.5 + Math.random() * 2,
         alpha: 1,
         color,
-        decay: 0.04
+        decay: 0.045
       });
     }
   };
@@ -564,37 +681,32 @@ const SpiderSwingGame = ({ onWin, onLoss, onScoreUpdate, onComboUpdate, onHealth
     }
   };
 
-  // Support swipe movements for mobile
-  const handleTouchStart = (e) => {
-    if (isPaused || gamePhase !== 'playing') return;
-    touchStart.current.x = e.touches[0].clientX;
-    touchStart.current.y = e.touches[0].clientY;
-  };
-
-  const handleTouchEnd = (e) => {
-    if (isPaused || gamePhase !== 'playing') return;
-    const diffX = e.changedTouches[0].clientX - touchStart.current.x;
-    
-    const p = player.current;
-    if (diffX < -50) {
-      // swipe left
-      p.lane = Math.max(p.lane - 1, 0);
-      soundSystem.playTick();
-    } else if (diffX > 50) {
-      // swipe right
-      p.lane = Math.min(p.lane + 1, 2);
-      soundSystem.playTick();
-    }
-  };
-
   return (
-    <canvas 
-      ref={canvasRef} 
-      className="game-canvas-element"
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
-      style={{ height: '170px' }}
-    />
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      <canvas 
+        ref={canvasRef} 
+        className="game-canvas-element"
+        style={{ height: '150px' }}
+      />
+      
+      {/* Dynamic F.R.I.D.A.Y AI holographic console subtitles */}
+      <div 
+        style={{
+          width: '100%',
+          textAlign: 'center',
+          backgroundColor: 'rgba(5, 7, 11, 0.85)',
+          color: '#00F5FF',
+          fontFamily: 'var(--font-hud)',
+          fontSize: '0.75rem',
+          padding: '4px 0',
+          borderTop: '1px solid rgba(0, 245, 255, 0.15)',
+          letterSpacing: '1px',
+          textShadow: '0 0 6px #00F5FF'
+        }}
+      >
+        {fridayText}
+      </div>
+    </div>
   );
 };
 

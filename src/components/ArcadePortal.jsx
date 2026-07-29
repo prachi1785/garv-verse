@@ -22,6 +22,8 @@ const ArcadePortal = ({ stoneName, onClose, onGameComplete }) => {
   const [timeTaken, setTimeTaken] = useState(0);
   
   const [stoneVisible, setStoneVisible] = useState(false);
+  const [selectedDifficulty, setSelectedDifficulty] = useState('Normal');
+  const [unlockedAchievements, setUnlockedAchievements] = useState([]);
 
   const timerInterval = useRef(null);
   const startTime = useRef(0);
@@ -71,13 +73,17 @@ const ArcadePortal = ({ stoneName, onClose, onGameComplete }) => {
   useEffect(() => {
     if (missionState === 'LOADING') {
       console.log('[DEBUG] MissionManager: Loading diagnostic sequence booted');
+      
+      const initialTimes = { Easy: 55, Normal: 40, Hard: 30 };
+      setTimeLeft(initialTimes[selectedDifficulty] || 40);
+
       const timer = setTimeout(() => {
         setMissionState('COUNTDOWN');
         startCountdown();
       }, 1500);
       return () => clearTimeout(timer);
     }
-  }, [missionState]);
+  }, [missionState, selectedDifficulty]);
 
   const startCountdown = () => {
     console.log('[DEBUG] MissionManager: Countdown starting');
@@ -171,6 +177,18 @@ const ArcadePortal = ({ stoneName, onClose, onGameComplete }) => {
     setMissionState('VICTORY');
     soundSystem.playStoneSocket();
 
+    // Verify Achievements
+    const list = [];
+    if (health >= 100) list.push('Untouchable');
+    if (maxCombo >= 10) list.push('Perfect Swing');
+    if (timeTaken <= 25 && timeTaken > 0) list.push('Speed Demon');
+    if (finalScore >= 600) list.push('Friendly Neighborhood');
+    setUnlockedAchievements(list);
+
+    try {
+      localStorage.setItem(`garvverse_achievements_${stoneName}`, JSON.stringify(list));
+    } catch (e) {}
+
     // Zoom and shake portal
     gsap.to('.portal-game-window', {
       scale: 1.04,
@@ -244,8 +262,9 @@ const ArcadePortal = ({ stoneName, onClose, onGameComplete }) => {
   };
 
   const getRank = (finalScore) => {
-    if (finalScore >= 1200 && health >= 90) return 'S';
-    if (finalScore >= 800) return 'A';
+    if (finalScore >= 1500 && health >= 100) return 'S+';
+    if (finalScore >= 1200 && health >= 80) return 'S';
+    if (finalScore >= 800 && health >= 60) return 'A';
     if (finalScore >= 500) return 'B';
     return 'C';
   };
@@ -344,7 +363,25 @@ const ArcadePortal = ({ stoneName, onClose, onGameComplete }) => {
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: '15px', justifyContent: 'center' }}>
+              {stoneName === 'Space' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', marginBottom: '15px', textAlign: 'center', width: '100%' }}>
+                  <div style={{ fontSize: '0.75rem', opacity: 0.5, letterSpacing: '1px', marginBottom: '4px' }}>SIMULATION DIFFICULTY:</div>
+                  <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+                    {['Easy', 'Normal', 'Hard'].map((diff) => (
+                      <button
+                        key={diff}
+                        className={`hud-btn ${selectedDifficulty === diff ? 'gold' : ''}`}
+                        style={{ padding: '4px 12px', fontSize: '0.75rem' }}
+                        onClick={() => { soundSystem.playTick(); setSelectedDifficulty(diff); }}
+                      >
+                        {diff.toUpperCase()}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: '15px', justifyContent: 'center', width: '100%' }}>
                 <button className="hud-btn gold" onClick={() => setMissionState('LOADING')}>
                   BEGIN MISSION
                 </button>
@@ -538,14 +575,41 @@ const ArcadePortal = ({ stoneName, onClose, onGameComplete }) => {
                     style={{ 
                       fontSize: '2.2rem', 
                       fontWeight: 900, 
-                      color: rank === 'S' ? '#FFD84A' : rank === 'A' ? '#00FF66' : '#00F5FF',
-                      textShadow: `0 0 10px ${rank === 'S' ? '#FFD84A' : '#00FF66'}`
+                      color: (rank === 'S' || rank === 'S+') ? '#FFD84A' : rank === 'A' ? '#00FF66' : '#00F5FF',
+                      textShadow: `0 0 10px ${(rank === 'S' || rank === 'S+') ? '#FFD84A' : '#00FF66'}`
                     }}
                   >
                     {rank}
                   </span>
                 </div>
               </div>
+
+              {/* Achievements Badges */}
+              {unlockedAchievements.length > 0 && (
+                <div style={{ width: '100%', marginBottom: '15px' }}>
+                  <div style={{ fontSize: '0.75rem', opacity: 0.5, letterSpacing: '1px', marginBottom: '8px', textAlign: 'center' }}>UNLOCKED ACHIEVEMENTS:</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center' }}>
+                    {unlockedAchievements.map((ach) => (
+                      <span 
+                        key={ach}
+                        style={{
+                          fontSize: '0.7rem',
+                          backgroundColor: 'rgba(255, 216, 74, 0.1)',
+                          border: '1px solid #FFD84A',
+                          color: '#FFD84A',
+                          borderRadius: '4px',
+                          padding: '3px 8px',
+                          boxShadow: '0 0 8px rgba(255, 216, 74, 0.2)',
+                          textTransform: 'uppercase',
+                          letterSpacing: '1px'
+                        }}
+                      >
+                        🏆 {ach}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Action buttons */}
               <div style={{ display: 'flex', gap: '15px', width: '100%', justifyContent: 'center' }}>
