@@ -1583,3 +1583,26 @@ body.scanlines-disabled .hologram-scanlines {
     transform: scale(1.02);
   }
 }
+
+/* Reduced Motion Override (Sprint 8) */
+body.reduced-motion *,
+body.reduced-motion *::before,
+body.reduced-motion *::after {
+  animation-delay: -1ms !important;
+  animation-duration: 1ms !important;
+  animation-iteration-count: 1 !important;
+  background-attachment: initial !important;
+  scroll-behavior: auto !important;
+  transition-duration: 0s !important;
+  transition-delay: 0s !important;
+}
+
+/* Keyboard Focus Indicators (Sprint 8) */
+button:focus-visible,
+select:focus-visible,
+input:focus-visible,
+a:focus-visible {
+  outline: 2px solid #00f5ff !important;
+  outline-offset: 3px !important;
+  box-shadow: 0 0 10px rgba(0, 245, 255, 0.85) !important;
+}

@@ -7,11 +7,23 @@ const LoadingScreen = ({ onEnter }) => {
   const [stage, setStage] = useState('black');
   const [logs, setLogs] = useState([]);
   const [progress, setProgress] = useState(0);
+  const [loadingTip, setLoadingTip] = useState('');
   const progressInterval = useRef(null);
+
+  const tips = [
+    "S.H.I.E.L.D. Tip: Collecting consecutive Spider Tokens in Mission 01 raises combo multipliers and boosts final evaluation ranks.",
+    "S.H.I.E.L.D. Tip: Click the centerpiece Arc Reactor on the dashboard to trigger system energy pulses and diagnostic panel shakes.",
+    "S.H.I.E.L.D. Tip: Complete simulations with 100% health to secure the legendary 'Untouchable' S.H.I.E.L.D. simulator badge.",
+    "S.H.I.E.L.D. Tip: Tuning simulation difficulties to HARD increases drone speed and grants score multipliers.",
+    "S.H.I.E.L.D. Tip: Visor settings let you toggle scanlines and particle intensity to optimize render efficiency."
+  ];
 
   useEffect(() => {
     console.log('[DEBUG] LoadingScreen: Phase 1 (Black Screen) initiated');
     
+    // Choose a random tip
+    setLoadingTip(tips[Math.floor(Math.random() * tips.length)]);
+
     // Auto-advance from black screen to Friday online after 1.5 seconds
     const timer = setTimeout(() => {
       setStage('friday_online');
@@ -238,6 +250,29 @@ const LoadingScreen = ({ onEnter }) => {
             filter: 'blur(1px)'
           }}
         />
+      )}
+      {/* S.H.I.E.L.D. Loading Tips */}
+      {stage !== 'black' && stage !== 'portal_zoom' && stage !== 'portal_open' && (
+        <div 
+          style={{ 
+            position: 'absolute', 
+            bottom: '40px', 
+            left: '50%', 
+            transform: 'translateX(-50%)', 
+            width: '90%', 
+            maxWidth: '500px', 
+            textAlign: 'center', 
+            color: '#FFD84A', 
+            fontFamily: 'var(--font-hud)', 
+            fontSize: '0.78rem', 
+            letterSpacing: '1px',
+            opacity: 0.8,
+            lineHeight: '1.45',
+            textShadow: '0 0 5px rgba(255, 216, 74, 0.4)'
+          }}
+        >
+          {loadingTip}
+        </div>
       )}
     </div>
   );

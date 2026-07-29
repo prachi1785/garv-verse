@@ -1,7 +1,19 @@
 import React, { useEffect, useRef, useState } from 'react';
 import soundSystem from '../utils/soundSystem';
 
-const ShieldDashboard = ({ stones = {}, trophy = false, snapKey = false, onLaunchGame, onAwardSoulStone }) => {
+const ShieldDashboard = ({ 
+  stones = {}, 
+  trophy = false, 
+  snapKey = false, 
+  onLaunchGame, 
+  onAwardSoulStone, 
+  openStatsOnLoad, 
+  onClearStatsLoad, 
+  openSettingsOnLoad, 
+  onClearSettingsLoad, 
+  demoModeActive = false, 
+  onToggleDemoMode 
+}) => {
   const [countdown, setCountdown] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
   const [powerLevel, setPowerLevel] = useState(1240500);
   const [fridayMsg, setFridayMsg] = useState('Welcome back, Agent Garv. Directives visualizer online.');
@@ -15,6 +27,7 @@ const ShieldDashboard = ({ stones = {}, trophy = false, snapKey = false, onLaunc
   const [showSettings, setShowSettings] = useState(false);
   const [scanlines, setScanlines] = useState(true);
   const [particlesIntensity, setParticlesIntensity] = useState('medium');
+  const [reducedMotion, setReducedMotion] = useState(false);
 
   // Earth Globe Canvas
   const earthCanvasRef = useRef(null);
@@ -41,6 +54,15 @@ const ShieldDashboard = ({ stones = {}, trophy = false, snapKey = false, onLaunc
       if (savedParticles) {
         setParticlesIntensity(savedParticles);
       }
+
+      const savedMotion = localStorage.getItem('garvverse_pref_motion');
+      if (savedMotion === 'reduce' || (!savedMotion && window.matchMedia('(prefers-reduced-motion: reduce)').matches)) {
+        setReducedMotion(true);
+        document.body.classList.add('reduced-motion');
+      } else {
+        setReducedMotion(false);
+        document.body.classList.remove('reduced-motion');
+      }
     } catch (e) {}
   }, []);
 
@@ -54,6 +76,20 @@ const ShieldDashboard = ({ stones = {}, trophy = false, snapKey = false, onLaunc
         document.body.classList.remove('scanlines-disabled');
       } else {
         document.body.classList.add('scanlines-disabled');
+      }
+    } catch(e) {}
+  };
+
+  const toggleReducedMotionSetting = () => {
+    soundSystem.playClick();
+    const nextVal = !reducedMotion;
+    setReducedMotion(nextVal);
+    try {
+      localStorage.setItem('garvverse_pref_motion', nextVal ? 'reduce' : 'normal');
+      if (nextVal) {
+        document.body.classList.add('reduced-motion');
+      } else {
+        document.body.classList.remove('reduced-motion');
       }
     } catch(e) {}
   };
@@ -73,10 +109,13 @@ const ShieldDashboard = ({ stones = {}, trophy = false, snapKey = false, onLaunc
       localStorage.removeItem('garvverse_pref_scanlines');
       localStorage.removeItem('garvverse_pref_particles');
       localStorage.removeItem('garvverse_pref_audio');
+      localStorage.removeItem('garvverse_pref_motion');
       
       setScanlines(true);
       document.body.classList.remove('scanlines-disabled');
       setParticlesIntensity('medium');
+      setReducedMotion(false);
+      document.body.classList.remove('reduced-motion');
       alert('Preferences reset to default.');
     } catch(e) {}
   };
@@ -185,6 +224,23 @@ const ShieldDashboard = ({ stones = {}, trophy = false, snapKey = false, onLaunc
   const totalMissions = 8;
   const completedMissions = stonesCollected + (trophy ? 1 : 0) + (snapKey ? 1 : 0);
   const globalProgressPercent = Math.round((completedMissions / totalMissions) * 100);
+
+  // Computed Recruiter Demo Overrides (Sprint 8)
+  const displayTotalScore = demoModeActive ? 18650 : totalScore;
+  const displayPlayerLevel = demoModeActive ? 12 : playerLevel;
+  const displayPlayerXp = demoModeActive ? 11500 : playerXp;
+  const displayPlayTime = demoModeActive ? 2400 : totalPlayTime;
+  
+  const displayBestRanks = demoModeActive ? {
+    Space: 'S+', Mind: 'S', Reality: 'S+', Power: 'A', Time: 'S', Soul: 'A', Legend: 'S+', Final: 'S+'
+  } : bestRanks;
+
+  const displayAchievements = demoModeActive ? [
+    'Untouchable', 'Perfect Swing', 'Speed Demon', 'Friendly Neighborhood'
+  ] : achievements;
+
+  const displayCompletedMissions = demoModeActive ? 8 : completedMissions;
+  const displayGlobalProgressPercent = demoModeActive ? 100 : globalProgressPercent;
 
   // Upgrade power values
   useEffect(() => {
@@ -468,18 +524,18 @@ const ShieldDashboard = ({ stones = {}, trophy = false, snapKey = false, onLaunc
               </div>
               <div>
                 <div style={{ fontSize: '1.1rem', fontWeight: 900, color: '#FFD84A' }}>AGENT GARV</div>
-                <div style={{ fontSize: '0.65rem', opacity: 0.5, letterSpacing: '2px' }}>LEVEL {playerLevel} [SUPREME CLEARANCE]</div>
+                <div style={{ fontSize: '0.65rem', opacity: 0.5, letterSpacing: '2px' }}>LEVEL {displayPlayerLevel} [SUPREME CLEARANCE]</div>
               </div>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '3px' }}>
                 <span>MISSION XP:</span>
-                <span style={{ color: '#FFD84A', fontWeight: 700 }}>{playerXp} XP</span>
+                <span style={{ color: '#FFD84A', fontWeight: 700 }}>{displayPlayerXp} XP</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '3px' }}>
                 <span>MISSION SCORE:</span>
-                <span style={{ color: '#00F5FF', fontWeight: 700 }}>{totalScore.toLocaleString()} pts</span>
+                <span style={{ color: '#00F5FF', fontWeight: 700 }}>{displayTotalScore.toLocaleString()} pts</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '3px' }}>
                 <span>HQ RANK:</span>
@@ -487,7 +543,7 @@ const ShieldDashboard = ({ stones = {}, trophy = false, snapKey = false, onLaunc
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>DEPLOYS:</span>
-                <span>{completedMissions} missions</span>
+                <span>{displayCompletedMissions} missions</span>
               </div>
             </div>
           </div>
@@ -515,19 +571,19 @@ const ShieldDashboard = ({ stones = {}, trophy = false, snapKey = false, onLaunc
           <div className="hud-widget-title">MISSION TRACKER</div>
           <div className="hud-widget-content" style={{ fontFamily: 'var(--font-hud)', fontSize: '0.9rem' }}>
             <div style={{ fontSize: '1.1rem', letterSpacing: '1px', color: '#00F5FF', marginBottom: '8px' }}>
-              Progress: {getProgressBlocks(globalProgressPercent)} {globalProgressPercent}%
+              Progress: {getProgressBlocks(displayGlobalProgressPercent)} {displayGlobalProgressPercent}%
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
               <span>Completed Sims:</span>
-              <span style={{ fontWeight: 700 }}>{completedMissions} / {totalMissions}</span>
+              <span style={{ fontWeight: 700 }}>{displayCompletedMissions} / {totalMissions}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
               <span>Infinity Stones:</span>
-              <span style={{ color: '#00F5FF', fontWeight: 700 }}>{stonesCollected} / 6</span>
+              <span style={{ color: '#00F5FF', fontWeight: 700 }}>{demoModeActive ? 6 : stonesCollected} / 6</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span>Bonus Trophies:</span>
-              <span style={{ color: '#FFD84A', fontWeight: 700 }}>{trophy ? 1 : 0} / 1</span>
+              <span style={{ color: '#FFD84A', fontWeight: 700 }}>{demoModeActive || trophy ? 1 : 0} / 1</span>
             </div>
           </div>
         </div>
@@ -649,7 +705,7 @@ const ShieldDashboard = ({ stones = {}, trophy = false, snapKey = false, onLaunc
                 <div className="arcade-card-name" style={{ fontSize: '0.88rem', fontWeight: 900 }}>Spider Web Swing</div>
                 
                 <div style={{ fontSize: '0.68rem', opacity: 0.7, color: '#00F5FF', fontFamily: 'monospace' }}>
-                  {stones['Space'] ? `✅ CLOSED // BEST: ${bestRanks.Space}` : activeMission === 'Space' ? '▶ RUN READY // CALIBRATING' : '▶ DIAGNOSTICS ACTIVE'}
+                  {stones['Space'] ? `✅ CLOSED // BEST: ${displayBestRanks.Space}` : activeMission === 'Space' ? '▶ RUN READY // CALIBRATING' : '▶ DIAGNOSTICS ACTIVE'}
                 </div>
                 <div style={{ fontSize: '0.62rem', opacity: 0.5, textTransform: 'uppercase' }}>Difficulty: ★★★★☆</div>
               </div>
@@ -665,7 +721,7 @@ const ShieldDashboard = ({ stones = {}, trophy = false, snapKey = false, onLaunc
                 <div className="arcade-card-name" style={{ fontSize: '0.88rem', fontWeight: 900 }}>Iron Man Flight</div>
                 
                 <div style={{ fontSize: '0.68rem', opacity: 0.7, color: '#FFD84A', fontFamily: 'monospace' }}>
-                  {stones['Mind'] ? `✅ CLOSED // BEST: ${bestRanks.Mind}` : !mindUnlocked ? '🔒 RESTRICTED' : activeMission === 'Mind' ? '▶ RUN READY // LAUNCH' : '▶ STAND BY'}
+                  {stones['Mind'] ? `✅ CLOSED // BEST: ${displayBestRanks.Mind}` : !mindUnlocked ? '🔒 RESTRICTED' : activeMission === 'Mind' ? '▶ RUN READY // LAUNCH' : '▶ STAND BY'}
                 </div>
                 <div style={{ fontSize: '0.62rem', opacity: 0.5, textTransform: 'uppercase' }}>Difficulty: ★★★☆☆</div>
               </div>
@@ -681,7 +737,7 @@ const ShieldDashboard = ({ stones = {}, trophy = false, snapKey = false, onLaunc
                 <div className="arcade-card-name" style={{ fontSize: '0.88rem', fontWeight: 900 }}>Cap Shield Combat</div>
                 
                 <div style={{ fontSize: '0.68rem', opacity: 0.7, color: '#E62429', fontFamily: 'monospace' }}>
-                  {stones['Reality'] ? `✅ CLOSED // BEST: ${bestRanks.Reality}` : !realityUnlocked ? '🔒 RESTRICTED' : activeMission === 'Reality' ? '▶ RUN READY // LAUNCH' : '▶ STAND BY'}
+                  {stones['Reality'] ? `✅ CLOSED // BEST: ${displayBestRanks.Reality}` : !realityUnlocked ? '🔒 RESTRICTED' : activeMission === 'Reality' ? '▶ RUN READY // LAUNCH' : '▶ STAND BY'}
                 </div>
                 <div style={{ fontSize: '0.62rem', opacity: 0.5, textTransform: 'uppercase' }}>Difficulty: ★★★★☆</div>
               </div>
@@ -697,7 +753,7 @@ const ShieldDashboard = ({ stones = {}, trophy = false, snapKey = false, onLaunc
                 <div className="arcade-card-name" style={{ fontSize: '0.88rem', fontWeight: 900 }}>Stark Kart</div>
                 
                 <div style={{ fontSize: '0.68rem', opacity: 0.7, color: '#7F5CFF', fontFamily: 'monospace' }}>
-                  {stones['Power'] ? `✅ CLOSED // BEST: ${bestRanks.Power}` : !powerUnlocked ? '🔒 RESTRICTED' : activeMission === 'Power' ? '▶ RUN READY // LAUNCH' : '▶ STAND BY'}
+                  {stones['Power'] ? `✅ CLOSED // BEST: ${displayBestRanks.Power}` : !powerUnlocked ? '🔒 RESTRICTED' : activeMission === 'Power' ? '▶ RUN READY // LAUNCH' : '▶ STAND BY'}
                 </div>
                 <div style={{ fontSize: '0.62rem', opacity: 0.5, textTransform: 'uppercase' }}>Difficulty: ★★★☆☆</div>
               </div>
@@ -713,7 +769,7 @@ const ShieldDashboard = ({ stones = {}, trophy = false, snapKey = false, onLaunc
                 <div className="arcade-card-name" style={{ fontSize: '0.88rem', fontWeight: 900 }}>Ghost Rider</div>
                 
                 <div style={{ fontSize: '0.68rem', opacity: 0.7, color: '#00FF66', fontFamily: 'monospace' }}>
-                  {stones['Time'] ? `✅ CLOSED // BEST: ${bestRanks.Time}` : !timeUnlocked ? '🔒 RESTRICTED' : activeMission === 'Time' ? '▶ RUN READY // LAUNCH' : '▶ STAND BY'}
+                  {stones['Time'] ? `✅ CLOSED // BEST: ${displayBestRanks.Time}` : !timeUnlocked ? '🔒 RESTRICTED' : activeMission === 'Time' ? '▶ RUN READY // LAUNCH' : '▶ STAND BY'}
                 </div>
                 <div style={{ fontSize: '0.62rem', opacity: 0.5, textTransform: 'uppercase' }}>Difficulty: ★★★★★</div>
               </div>
@@ -729,7 +785,7 @@ const ShieldDashboard = ({ stones = {}, trophy = false, snapKey = false, onLaunc
                 <div className="arcade-card-name" style={{ fontSize: '0.88rem', fontWeight: 900 }}>Portal Escape</div>
                 
                 <div style={{ fontSize: '0.68rem', opacity: 0.7, color: '#FF9900', fontFamily: 'monospace' }}>
-                  {stones['Soul'] ? `✅ CLOSED // BEST: ${bestRanks.Soul}` : !soulUnlocked ? '🔒 RESTRICTED' : activeMission === 'Soul' ? '▶ RUN READY // LAUNCH' : '▶ STAND BY'}
+                  {stones['Soul'] ? `✅ CLOSED // BEST: ${displayBestRanks.Soul}` : !soulUnlocked ? '🔒 RESTRICTED' : activeMission === 'Soul' ? '▶ RUN READY // LAUNCH' : '▶ STAND BY'}
                 </div>
                 <div style={{ fontSize: '0.62rem', opacity: 0.5, textTransform: 'uppercase' }}>Difficulty: ★★★★★</div>
               </div>
@@ -745,7 +801,7 @@ const ShieldDashboard = ({ stones = {}, trophy = false, snapKey = false, onLaunc
                 <div className="arcade-card-name" style={{ fontSize: '0.88rem', fontWeight: 900 }}>Ultron Survival</div>
                 
                 <div style={{ fontSize: '0.68rem', opacity: 0.7, color: '#FFD84A', fontFamily: 'monospace' }}>
-                  {trophy ? `✅ CLOSED // BEST: ${bestRanks.Legend}` : !legendUnlocked ? '🔒 RESTRICTED' : activeMission === 'Legend' ? '▶ RUN READY // LAUNCH' : '▶ STAND BY'}
+                  {trophy ? `✅ CLOSED // BEST: ${displayBestRanks.Legend}` : !legendUnlocked ? '🔒 RESTRICTED' : activeMission === 'Legend' ? '▶ RUN READY // LAUNCH' : '▶ STAND BY'}
                 </div>
                 <div style={{ fontSize: '0.62rem', opacity: 0.5, textTransform: 'uppercase' }}>Difficulty: ★★★★★</div>
               </div>
@@ -769,7 +825,7 @@ const ShieldDashboard = ({ stones = {}, trophy = false, snapKey = false, onLaunc
                 onClick={() => finalUnlocked && onLaunchGame('Final')}
                 onMouseEnter={() => finalUnlocked && soundSystem.playTick()}
               >
-                {snapKey ? `✅ THANOS DEFEATED [HI: ${highScores.Final}]` : !finalUnlocked ? '🔒 OMEGA ACCESS RESTRICTED // DEPLOY ALL STONES & TROPHY' : '⚔️ AVENGERS FINAL BATTLE'}
+                {snapKey ? `✅ THANOS DEFEATED [HI: ${demoModeActive ? 1950 : highScores.Final}]` : !finalUnlocked ? '🔒 OMEGA ACCESS RESTRICTED // DEPLOY ALL STONES & TROPHY' : '⚔️ AVENGERS FINAL BATTLE'}
               </button>
             </div>
 
@@ -832,7 +888,7 @@ const ShieldDashboard = ({ stones = {}, trophy = false, snapKey = false, onLaunc
           <div className="hud-widget-title">🏆 ACHIEVEMENT GALLERY</div>
           <div className="hud-widget-content" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
             {['Untouchable', 'Perfect Swing', 'Speed Demon', 'Friendly Neighborhood'].map((name) => {
-              const unlocked = achievements.includes(name);
+              const unlocked = displayAchievements.includes(name);
               return (
                 <div 
                   key={name}
@@ -931,6 +987,28 @@ const ShieldDashboard = ({ stones = {}, trophy = false, snapKey = false, onLaunc
                 </select>
               </div>
 
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>REDUCED MOTION:</span>
+                <button 
+                  className={`hud-btn ${reducedMotion ? 'gold' : ''}`}
+                  onClick={toggleReducedMotionSetting}
+                  style={{ padding: '4px 12px', fontSize: '0.8rem' }}
+                >
+                  {reducedMotion ? 'ENABLED' : 'DISABLED'}
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '10px' }}>
+                <span style={{ color: '#FFD84A', fontSize: '0.85rem', fontWeight: 900 }}>🛠️ RECRUITER DEMO:</span>
+                <button 
+                  className={`hud-btn ${demoModeActive ? 'gold' : ''}`}
+                  onClick={() => { soundSystem.playClick(); onToggleDemoMode(); }}
+                  style={{ padding: '4px 12px', fontSize: '0.75rem' }}
+                >
+                  {demoModeActive ? 'ACTIVE' : 'DEACTIVATED'}
+                </button>
+              </div>
+
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px' }}>
                 <span style={{ fontSize: '0.8rem', opacity: 0.5 }}>FACTORY DEFAULTS:</span>
                 <button 
@@ -981,27 +1059,27 @@ const ShieldDashboard = ({ stones = {}, trophy = false, snapKey = false, onLaunc
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '25px', fontSize: '0.85rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(0,245,255,0.1)', paddingBottom: '3px' }}>
                 <span>TOTAL ACCUMULATED SCORE:</span>
-                <span style={{ color: '#00f5ff', fontWeight: 700 }}>{totalScore.toLocaleString()} PTS</span>
+                <span style={{ color: '#00f5ff', fontWeight: 700 }}>{displayTotalScore.toLocaleString()} PTS</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(0,245,255,0.1)', paddingBottom: '3px' }}>
                 <span>SIMULATION COMPLETIONS:</span>
-                <span style={{ color: '#00FF66', fontWeight: 700 }}>{globalProgressPercent}%</span>
+                <span style={{ color: '#00FF66', fontWeight: 700 }}>{displayGlobalProgressPercent}%</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(0,245,255,0.1)', paddingBottom: '3px' }}>
                 <span>FLIGHT TIME ELAPSED:</span>
-                <span>{totalPlayTime} SECONDS</span>
+                <span>{displayPlayTime} SECONDS</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(0,245,255,0.1)', paddingBottom: '3px' }}>
                 <span>BEST ACTIVE COMBO:</span>
-                <span style={{ color: '#00FF66' }}>{localStorage.getItem('garvverse_maxcombo_Space') || 0}x</span>
+                <span style={{ color: '#00FF66' }}>{(demoModeActive ? 15 : Number(localStorage.getItem('garvverse_maxcombo_Space') || 0))}x</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(0,245,255,0.1)', paddingBottom: '3px' }}>
                 <span>COMPLETED DIRECTIVES:</span>
-                <span style={{ fontWeight: 700 }}>{completedMissions} / 8</span>
+                <span style={{ fontWeight: 700 }}>{displayCompletedMissions} / 8</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(0,245,255,0.1)', paddingBottom: '3px' }}>
-                <span>UNLOCKED achievements:</span>
-                <span style={{ color: '#ffd84a' }}>{achievements.length} / 4</span>
+                <span>UNLOCKED ACHIEVEMENTS:</span>
+                <span style={{ color: '#ffd84a' }}>{displayAchievements.length} / 4</span>
               </div>
             </div>
 

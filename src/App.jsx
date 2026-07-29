@@ -32,6 +32,16 @@ function App() {
   const [openStatsOnLoad, setOpenStatsOnLoad] = useState(false);
   const [openSettingsOnLoad, setOpenSettingsOnLoad] = useState(false);
 
+  // Recruiter Demo Mode State (Sprint 8)
+  const [demoModeActive, setDemoModeActive] = useState(false);
+
+  // Computed Demo Overrides
+  const activeStones = demoModeActive ? {
+    Space: true, Mind: true, Reality: true, Power: true, Time: true, Soul: true
+  } : stones;
+  const activeTrophy = demoModeActive ? true : trophy;
+  const activeSnapKey = demoModeActive ? true : snapKey;
+
   // 1. Initial State Loading from Local Storage
   useEffect(() => {
     try {
@@ -168,7 +178,7 @@ function App() {
     localStorage.setItem('garvverse_pref_audio', nextMuted ? 'muted' : 'unmuted');
   };
 
-  const collectedCount = Object.values(stones).filter(Boolean).length;
+  const collectedCount = Object.values(activeStones).filter(Boolean).length;
 
   return (
     <div className="garv-verse-app">
@@ -224,22 +234,24 @@ function App() {
 
           {/* Infinity Gauntlet socket row in HUD */}
           <InfinityGauntlet 
-            stones={stones} 
-            snapKey={snapKey} 
+            stones={activeStones} 
+            snapKey={activeSnapKey} 
             onSnapTrigger={handleSnapTrigger} 
           />
 
           {/* Central Grid Dashboard Panels */}
           <ShieldDashboard 
-            stones={stones} 
-            trophy={trophy}
-            snapKey={snapKey}
+            stones={activeStones} 
+            trophy={activeTrophy}
+            snapKey={activeSnapKey}
             onLaunchGame={handleLaunchGame}
             onAwardSoulStone={handleAwardSoulStone}
             openStatsOnLoad={openStatsOnLoad}
             onClearStatsLoad={() => setOpenStatsOnLoad(false)}
             openSettingsOnLoad={openSettingsOnLoad}
             onClearSettingsLoad={() => setOpenSettingsOnLoad(false)}
+            demoModeActive={demoModeActive}
+            onToggleDemoMode={() => setDemoModeActive(!demoModeActive)}
           />
         </div>
       )}

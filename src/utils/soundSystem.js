@@ -26,6 +26,19 @@ class SoundSystem {
     // Create Audio Context
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     this.ctx = new AudioContext();
+
+    // Handle tab-switching / backgrounding gracefully (Sprint 8)
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') {
+        if (this.ctx && this.ctx.state === 'running') {
+          this.ctx.suspend();
+        }
+      } else {
+        if (this.ctx && this.ctx.state === 'suspended' && !this.muted) {
+          this.ctx.resume().catch(() => {});
+        }
+      }
+    });
     
     // Create Master Gain Node
     this.masterVolume = this.ctx.createGain();
