@@ -27,12 +27,23 @@ function App() {
   const [activeGame, setActiveGame] = useState(null); // 'Space', 'Mind', 'Reality', 'Power', 'Time', 'Soul', 'Legend', 'Final'
   const [muted, setMuted] = useState(false);
 
+  // Welcome States (Sprint 7)
+  const [showWelcomeGateway, setShowWelcomeGateway] = useState(false);
+  const [openStatsOnLoad, setOpenStatsOnLoad] = useState(false);
+  const [openSettingsOnLoad, setOpenSettingsOnLoad] = useState(false);
+
   // 1. Initial State Loading from Local Storage
   useEffect(() => {
     try {
       const savedStones = localStorage.getItem('garvverse_stones');
       if (savedStones) {
         setStones(JSON.parse(savedStones));
+      }
+      
+      const savedXp = localStorage.getItem('garvverse_profile_xp');
+      const hasProgress = savedXp || (savedStones && savedStones !== '{}');
+      if (hasProgress) {
+        setShowWelcomeGateway(true);
       }
 
       const savedTrophy = localStorage.getItem('garvverse_trophy');
@@ -225,7 +236,101 @@ function App() {
             snapKey={snapKey}
             onLaunchGame={handleLaunchGame}
             onAwardSoulStone={handleAwardSoulStone}
+            openStatsOnLoad={openStatsOnLoad}
+            onClearStatsLoad={() => setOpenStatsOnLoad(false)}
+            openSettingsOnLoad={openSettingsOnLoad}
+            onClearSettingsLoad={() => setOpenSettingsOnLoad(false)}
           />
+        </div>
+      )}
+
+      {/* 5. Welcome-Back Security Gateway Screen Overlay */}
+      {stage === 'dashboard' && showWelcomeGateway && (
+        <div 
+          className="portal-modal-overlay" 
+          style={{ 
+            zIndex: 2000, 
+            backgroundColor: 'rgba(5, 7, 11, 0.96)', 
+            backdropFilter: 'blur(10px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >
+          <div 
+            style={{
+              width: '90%',
+              maxWidth: '440px',
+              backgroundColor: '#05070b',
+              border: '2px dashed #00f5ff',
+              borderRadius: '8px',
+              boxShadow: '0 0 35px rgba(0, 245, 255, 0.35)',
+              padding: '30px',
+              color: '#fff',
+              fontFamily: 'var(--font-hud)',
+              textAlign: 'center',
+              position: 'relative'
+            }}
+          >
+            <div className="hologram-scanlines" />
+            <div 
+              style={{ 
+                fontSize: '2rem', 
+                fontWeight: 900, 
+                color: '#00f5ff', 
+                textShadow: '0 0 10px #00f5ff', 
+                marginBottom: '10px',
+                letterSpacing: '3px'
+              }}
+            >
+              ACCESS DECREE
+            </div>
+            <div style={{ fontSize: '0.8rem', opacity: 0.5, letterSpacing: '4px', marginBottom: '20px' }}>
+              S.H.I.E.L.D. SECURE PROTOCOLS
+            </div>
+
+            <div style={{ fontSize: '1rem', color: '#ffd84a', marginBottom: '25px', lineHeight: '1.5' }}>
+              WELCOME BACK, AGENT GARV.
+              <br />
+              <span style={{ fontSize: '0.8rem', color: '#fff', opacity: 0.7 }}>
+                MULTIVERSE STATUS PERSISTED. SELECT CORE ACTION.
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <button 
+                className="hud-btn gold" 
+                onClick={() => { soundSystem.playClick(); setShowWelcomeGateway(false); }}
+                style={{ padding: '12px', fontSize: '0.9rem', letterSpacing: '2px' }}
+              >
+                CONTINUE SIMULATION
+              </button>
+              
+              <button 
+                className="hud-btn" 
+                onClick={() => { 
+                  soundSystem.playClick(); 
+                  setOpenStatsOnLoad(true); 
+                  setShowWelcomeGateway(false); 
+                }}
+                style={{ padding: '10px', fontSize: '0.85rem' }}
+              >
+                STATISTICAL READOUTS
+              </button>
+
+              <button 
+                className="hud-btn" 
+                onClick={() => { 
+                  soundSystem.playClick(); 
+                  setOpenSettingsOnLoad(true); 
+                  setShowWelcomeGateway(false); 
+                }}
+                style={{ padding: '10px', fontSize: '0.85rem' }}
+              >
+                VISOR CALIBRATION
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

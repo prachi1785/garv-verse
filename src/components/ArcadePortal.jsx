@@ -24,6 +24,7 @@ const ArcadePortal = ({ stoneName, onClose, onGameComplete }) => {
   const [stoneVisible, setStoneVisible] = useState(false);
   const [selectedDifficulty, setSelectedDifficulty] = useState('Normal');
   const [unlockedAchievements, setUnlockedAchievements] = useState([]);
+  const [earnedXpNotification, setEarnedXpNotification] = useState(0);
 
   const timerInterval = useRef(null);
   const startTime = useRef(0);
@@ -187,6 +188,37 @@ const ArcadePortal = ({ stoneName, onClose, onGameComplete }) => {
 
     try {
       localStorage.setItem(`garvverse_achievements_${stoneName}`, JSON.stringify(list));
+      
+      const rankAward = getRank(finalScore);
+      let rankBonus = 0;
+      if (rankAward === 'S+') rankBonus = 300;
+      else if (rankAward === 'S') rankBonus = 200;
+      else if (rankAward === 'A') rankBonus = 100;
+
+      const achievementsBonus = list.length * 100;
+      const perfectBonus = health >= 100 ? 150 : 0;
+      const earnedXp = 300 + rankBonus + achievementsBonus + perfectBonus;
+      setEarnedXpNotification(earnedXp);
+
+      const currentXp = Number(localStorage.getItem('garvverse_profile_xp')) || 0;
+      const currentLevel = Number(localStorage.getItem('garvverse_profile_level')) || 1;
+      
+      const newXp = currentXp + earnedXp;
+      const newLevel = Math.floor(newXp / 1000) + 1;
+      
+      localStorage.setItem('garvverse_profile_xp', newXp);
+      localStorage.setItem('garvverse_profile_level', newLevel);
+
+      // Track play time increments
+      const totalPlayTime = Number(localStorage.getItem('garvverse_profile_playtime')) || 0;
+      localStorage.setItem('garvverse_profile_playtime', totalPlayTime + timeTaken);
+
+      if (newLevel > currentLevel) {
+        soundSystem.playStoneSocket();
+        setTimeout(() => {
+          alert(`🎉 S.H.I.E.L.D. PROMOTION! LEVEL UP TO LEVEL ${newLevel}!`);
+        }, 1800);
+      }
     } catch (e) {}
 
     // Zoom and shake portal
@@ -571,6 +603,10 @@ const ArcadePortal = ({ stoneName, onClose, onGameComplete }) => {
                 <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '4px' }}>
                   <span>MAX COMBO:</span>
                   <span style={{ color: '#00FF66' }}>{maxCombo}x</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '4px' }}>
+                  <span>XP REWARD:</span>
+                  <span style={{ color: '#ffd84a', fontWeight: 700 }}>+{earnedXpNotification} XP</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span>PERFORMANCE RANK:</span>

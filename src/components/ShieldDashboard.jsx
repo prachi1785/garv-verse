@@ -90,6 +90,26 @@ const ShieldDashboard = ({ stones = {}, trophy = false, snapKey = false, onLaunc
   });
   const [achievements, setAchievements] = useState([]);
 
+  // Profile progression stats (Sprint 7)
+  const [playerXp, setPlayerXp] = useState(0);
+  const [playerLevel, setPlayerLevel] = useState(1);
+  const [totalPlayTime, setTotalPlayTime] = useState(0);
+  const [showStatsModal, setShowStatsModal] = useState(false);
+
+  useEffect(() => {
+    if (openStatsOnLoad) {
+      setShowStatsModal(true);
+      onClearStatsLoad();
+    }
+  }, [openStatsOnLoad]);
+
+  useEffect(() => {
+    if (openSettingsOnLoad) {
+      setShowSettings(true);
+      onClearSettingsLoad();
+    }
+  }, [openSettingsOnLoad]);
+
   useEffect(() => {
     try {
       const keys = ['Space', 'Mind', 'Reality', 'Power', 'Time', 'Soul', 'Legend', 'Final'];
@@ -118,6 +138,15 @@ const ShieldDashboard = ({ stones = {}, trophy = false, snapKey = false, onLaunc
       if (savedAchievements) {
         setAchievements(JSON.parse(savedAchievements));
       }
+
+      // Load Profile stats (Sprint 7)
+      const lvl = Number(localStorage.getItem('garvverse_profile_level')) || 1;
+      const xp = Number(localStorage.getItem('garvverse_profile_xp')) || 0;
+      const playtime = Number(localStorage.getItem('garvverse_profile_playtime')) || 0;
+
+      setPlayerLevel(lvl);
+      setPlayerXp(xp);
+      setTotalPlayTime(playtime);
     } catch(e) {}
   }, [stones, trophy, snapKey]);
 
@@ -366,6 +395,24 @@ const ShieldDashboard = ({ stones = {}, trophy = false, snapKey = false, onLaunc
     return '█'.repeat(filledBlocks) + '░'.repeat(emptyBlocks);
   };
 
+  const spaceUnlocked = true;
+  const mindUnlocked = stones['Space'] || stones['Mind'];
+  const realityUnlocked = stones['Mind'] || stones['Reality'];
+  const powerUnlocked = stones['Reality'] || stones['Power'];
+  const timeUnlocked = stones['Power'] || stones['Time'];
+  const soulUnlocked = stones['Time'] || stones['Soul'];
+  const legendUnlocked = stones['Soul'] || trophy;
+  const finalUnlocked = stonesCollected === 6 && trophy;
+
+  let activeMission = 'Space';
+  if (stones['Space']) activeMission = 'Mind';
+  if (stones['Mind']) activeMission = 'Reality';
+  if (stones['Reality']) activeMission = 'Power';
+  if (stones['Power']) activeMission = 'Time';
+  if (stones['Time']) activeMission = 'Soul';
+  if (stones['Soul']) activeMission = 'Legend';
+  if (trophy) activeMission = 'Final';
+
   return (
     <div className={`dashboard-grid ${triggerPulse ? 'shake-grid' : ''}`} style={{ transition: 'transform 0.3s' }}>
       
@@ -421,11 +468,15 @@ const ShieldDashboard = ({ stones = {}, trophy = false, snapKey = false, onLaunc
               </div>
               <div>
                 <div style={{ fontSize: '1.1rem', fontWeight: 900, color: '#FFD84A' }}>AGENT GARV</div>
-                <div style={{ fontSize: '0.65rem', opacity: 0.5, letterSpacing: '2px' }}>CLEARANCE LEVEL 9</div>
+                <div style={{ fontSize: '0.65rem', opacity: 0.5, letterSpacing: '2px' }}>LEVEL {playerLevel} [SUPREME CLEARANCE]</div>
               </div>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '3px' }}>
+                <span>MISSION XP:</span>
+                <span style={{ color: '#FFD84A', fontWeight: 700 }}>{playerXp} XP</span>
+              </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '3px' }}>
                 <span>MISSION SCORE:</span>
                 <span style={{ color: '#00F5FF', fontWeight: 700 }}>{totalScore.toLocaleString()} pts</span>
@@ -492,13 +543,22 @@ const ShieldDashboard = ({ stones = {}, trophy = false, snapKey = false, onLaunc
             <div className="garvverse-subtitle" style={{ fontSize: '0.85rem', letterSpacing: '3px' }}>SEC-616 COMMAND CENTER</div>
           </div>
 
-          <button 
-            className="hud-btn" 
-            onClick={() => setShowSettings(true)}
-            style={{ padding: '6px 14px', fontSize: '0.8rem', letterSpacing: '2px' }}
-          >
-            ⚙️ SETTINGS
-          </button>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button 
+              className="hud-btn gold" 
+              onClick={() => { soundSystem.playTick(); setShowStatsModal(true); }}
+              style={{ padding: '6px 14px', fontSize: '0.8rem', letterSpacing: '2px' }}
+            >
+              📊 STATISTICS
+            </button>
+            <button 
+              className="hud-btn" 
+              onClick={() => setShowSettings(true)}
+              style={{ padding: '6px 14px', fontSize: '0.8rem', letterSpacing: '2px' }}
+            >
+              ⚙️ SETTINGS
+            </button>
+          </div>
         </div>
 
         {/* --- ⚛️ 3. Premium Interactive Arc Reactor centerpiece --- */}
@@ -580,112 +640,112 @@ const ShieldDashboard = ({ stones = {}, trophy = false, snapKey = false, onLaunc
               
               {/* Card 1: Spider-Man */}
               <div 
-                className={`arcade-game-card ${stones['Space'] ? 'completed' : ''}`}
+                className={`arcade-game-card ${stones['Space'] ? 'completed' : activeMission === 'Space' ? 'active-pulse' : ''}`}
                 style={{ '--stone-color': '#00F5FF', '--stone-rgb': '0, 245, 255', height: '145px', padding: '12px' }}
-                onClick={() => onLaunchGame('Space')}
-                onMouseEnter={() => soundSystem.playTick()}
+                onClick={() => spaceUnlocked && onLaunchGame('Space')}
+                onMouseEnter={() => spaceUnlocked && soundSystem.playTick()}
               >
                 <div className="arcade-card-icon" style={{ fontSize: '1.7rem' }}>🕷️</div>
                 <div className="arcade-card-name" style={{ fontSize: '0.88rem', fontWeight: 900 }}>Spider Web Swing</div>
                 
                 <div style={{ fontSize: '0.68rem', opacity: 0.7, color: '#00F5FF', fontFamily: 'monospace' }}>
-                  {stones['Space'] ? `✅ CLOSED // BEST: ${bestRanks.Space}` : '▶ DIAGNOSTICS ACTIVE'}
+                  {stones['Space'] ? `✅ CLOSED // BEST: ${bestRanks.Space}` : activeMission === 'Space' ? '▶ RUN READY // CALIBRATING' : '▶ DIAGNOSTICS ACTIVE'}
                 </div>
                 <div style={{ fontSize: '0.62rem', opacity: 0.5, textTransform: 'uppercase' }}>Difficulty: ★★★★☆</div>
               </div>
 
               {/* Card 2: Iron Man */}
               <div 
-                className={`arcade-game-card ${stones['Mind'] ? 'completed' : ''}`}
+                className={`arcade-game-card ${stones['Mind'] ? 'completed' : !mindUnlocked ? 'locked' : activeMission === 'Mind' ? 'active-pulse' : ''}`}
                 style={{ '--stone-color': '#FFD84A', '--stone-rgb': '255, 216, 74', height: '145px', padding: '12px' }}
-                onClick={() => onLaunchGame('Mind')}
-                onMouseEnter={() => soundSystem.playTick()}
+                onClick={() => mindUnlocked && onLaunchGame('Mind')}
+                onMouseEnter={() => mindUnlocked && soundSystem.playTick()}
               >
                 <div className="arcade-card-icon" style={{ fontSize: '1.7rem' }}>⚡</div>
                 <div className="arcade-card-name" style={{ fontSize: '0.88rem', fontWeight: 900 }}>Iron Man Flight</div>
                 
                 <div style={{ fontSize: '0.68rem', opacity: 0.7, color: '#FFD84A', fontFamily: 'monospace' }}>
-                  {stones['Mind'] ? `✅ CLOSED // BEST: ${bestRanks.Mind}` : '▶ STAND BY'}
+                  {stones['Mind'] ? `✅ CLOSED // BEST: ${bestRanks.Mind}` : !mindUnlocked ? '🔒 RESTRICTED' : activeMission === 'Mind' ? '▶ RUN READY // LAUNCH' : '▶ STAND BY'}
                 </div>
                 <div style={{ fontSize: '0.62rem', opacity: 0.5, textTransform: 'uppercase' }}>Difficulty: ★★★☆☆</div>
               </div>
 
               {/* Card 3: Cap */}
               <div 
-                className={`arcade-game-card ${stones['Reality'] ? 'completed' : ''}`}
+                className={`arcade-game-card ${stones['Reality'] ? 'completed' : !realityUnlocked ? 'locked' : activeMission === 'Reality' ? 'active-pulse' : ''}`}
                 style={{ '--stone-color': '#E62429', '--stone-rgb': '230, 36, 41', height: '145px', padding: '12px' }}
-                onClick={() => onLaunchGame('Reality')}
-                onMouseEnter={() => soundSystem.playTick()}
+                onClick={() => realityUnlocked && onLaunchGame('Reality')}
+                onMouseEnter={() => realityUnlocked && soundSystem.playTick()}
               >
                 <div className="arcade-card-icon" style={{ fontSize: '1.7rem' }}>🛡️</div>
                 <div className="arcade-card-name" style={{ fontSize: '0.88rem', fontWeight: 900 }}>Cap Shield Combat</div>
                 
                 <div style={{ fontSize: '0.68rem', opacity: 0.7, color: '#E62429', fontFamily: 'monospace' }}>
-                  {stones['Reality'] ? `✅ CLOSED // BEST: ${bestRanks.Reality}` : '▶ STAND BY'}
+                  {stones['Reality'] ? `✅ CLOSED // BEST: ${bestRanks.Reality}` : !realityUnlocked ? '🔒 RESTRICTED' : activeMission === 'Reality' ? '▶ RUN READY // LAUNCH' : '▶ STAND BY'}
                 </div>
                 <div style={{ fontSize: '0.62rem', opacity: 0.5, textTransform: 'uppercase' }}>Difficulty: ★★★★☆</div>
               </div>
 
               {/* Card 4: Stark Kart */}
               <div 
-                className={`arcade-game-card ${stones['Power'] ? 'completed' : ''}`}
+                className={`arcade-game-card ${stones['Power'] ? 'completed' : !powerUnlocked ? 'locked' : activeMission === 'Power' ? 'active-pulse' : ''}`}
                 style={{ '--stone-color': '#7F5CFF', '--stone-rgb': '127, 92, 255', height: '145px', padding: '12px' }}
-                onClick={() => onLaunchGame('Power')}
-                onMouseEnter={() => soundSystem.playTick()}
+                onClick={() => powerUnlocked && onLaunchGame('Power')}
+                onMouseEnter={() => powerUnlocked && soundSystem.playTick()}
               >
                 <div className="arcade-card-icon" style={{ fontSize: '1.7rem' }}>🏎️</div>
                 <div className="arcade-card-name" style={{ fontSize: '0.88rem', fontWeight: 900 }}>Stark Kart</div>
                 
                 <div style={{ fontSize: '0.68rem', opacity: 0.7, color: '#7F5CFF', fontFamily: 'monospace' }}>
-                  {stones['Power'] ? `✅ CLOSED // BEST: ${bestRanks.Power}` : '▶ STAND BY'}
+                  {stones['Power'] ? `✅ CLOSED // BEST: ${bestRanks.Power}` : !powerUnlocked ? '🔒 RESTRICTED' : activeMission === 'Power' ? '▶ RUN READY // LAUNCH' : '▶ STAND BY'}
                 </div>
                 <div style={{ fontSize: '0.62rem', opacity: 0.5, textTransform: 'uppercase' }}>Difficulty: ★★★☆☆</div>
               </div>
 
               {/* Card 5: Ghost Rider */}
               <div 
-                className={`arcade-game-card ${stones['Time'] ? 'completed' : ''}`}
+                className={`arcade-game-card ${stones['Time'] ? 'completed' : !timeUnlocked ? 'locked' : activeMission === 'Time' ? 'active-pulse' : ''}`}
                 style={{ '--stone-color': '#00FF66', '--stone-rgb': '0, 255, 102', height: '145px', padding: '12px' }}
-                onClick={() => onLaunchGame('Time')}
-                onMouseEnter={() => soundSystem.playTick()}
+                onClick={() => timeUnlocked && onLaunchGame('Time')}
+                onMouseEnter={() => timeUnlocked && soundSystem.playTick()}
               >
                 <div className="arcade-card-icon" style={{ fontSize: '1.7rem' }}>🔥</div>
                 <div className="arcade-card-name" style={{ fontSize: '0.88rem', fontWeight: 900 }}>Ghost Rider</div>
                 
                 <div style={{ fontSize: '0.68rem', opacity: 0.7, color: '#00FF66', fontFamily: 'monospace' }}>
-                  {stones['Time'] ? `✅ CLOSED // BEST: ${bestRanks.Time}` : '▶ STAND BY'}
+                  {stones['Time'] ? `✅ CLOSED // BEST: ${bestRanks.Time}` : !timeUnlocked ? '🔒 RESTRICTED' : activeMission === 'Time' ? '▶ RUN READY // LAUNCH' : '▶ STAND BY'}
                 </div>
                 <div style={{ fontSize: '0.62rem', opacity: 0.5, textTransform: 'uppercase' }}>Difficulty: ★★★★★</div>
               </div>
 
               {/* Card 6: Doctor Strange */}
               <div 
-                className={`arcade-game-card ${stones['Soul'] ? 'completed' : ''}`}
+                className={`arcade-game-card ${stones['Soul'] ? 'completed' : !soulUnlocked ? 'locked' : activeMission === 'Soul' ? 'active-pulse' : ''}`}
                 style={{ '--stone-color': '#FF9900', '--stone-rgb': '255, 153, 0', height: '145px', padding: '12px' }}
-                onClick={() => onLaunchGame('Soul')}
-                onMouseEnter={() => soundSystem.playTick()}
+                onClick={() => soulUnlocked && onLaunchGame('Soul')}
+                onMouseEnter={() => soulUnlocked && soundSystem.playTick()}
               >
                 <div className="arcade-card-icon" style={{ fontSize: '1.7rem' }}>🌀</div>
                 <div className="arcade-card-name" style={{ fontSize: '0.88rem', fontWeight: 900 }}>Portal Escape</div>
                 
                 <div style={{ fontSize: '0.68rem', opacity: 0.7, color: '#FF9900', fontFamily: 'monospace' }}>
-                  {stones['Soul'] ? `✅ CLOSED // BEST: ${bestRanks.Soul}` : '▶ STAND BY'}
+                  {stones['Soul'] ? `✅ CLOSED // BEST: ${bestRanks.Soul}` : !soulUnlocked ? '🔒 RESTRICTED' : activeMission === 'Soul' ? '▶ RUN READY // LAUNCH' : '▶ STAND BY'}
                 </div>
                 <div style={{ fontSize: '0.62rem', opacity: 0.5, textTransform: 'uppercase' }}>Difficulty: ★★★★★</div>
               </div>
 
               {/* Card 7: Ultron Survival */}
               <div 
-                className={`arcade-game-card ${trophy ? 'completed' : ''}`}
+                className={`arcade-game-card ${trophy ? 'completed' : !legendUnlocked ? 'locked' : activeMission === 'Legend' ? 'active-pulse' : ''}`}
                 style={{ '--stone-color': '#FFD84A', '--stone-rgb': '255, 216, 74', height: '145px', padding: '12px' }}
-                onClick={() => onLaunchGame('Legend')}
-                onMouseEnter={() => soundSystem.playTick()}
+                onClick={() => legendUnlocked && onLaunchGame('Legend')}
+                onMouseEnter={() => legendUnlocked && soundSystem.playTick()}
               >
                 <div className="arcade-card-icon" style={{ fontSize: '1.7rem' }}>🤖</div>
                 <div className="arcade-card-name" style={{ fontSize: '0.88rem', fontWeight: 900 }}>Ultron Survival</div>
                 
                 <div style={{ fontSize: '0.68rem', opacity: 0.7, color: '#FFD84A', fontFamily: 'monospace' }}>
-                  {trophy ? `✅ CLOSED // BEST: ${bestRanks.Legend}` : '▶ STAND BY'}
+                  {trophy ? `✅ CLOSED // BEST: ${bestRanks.Legend}` : !legendUnlocked ? '🔒 RESTRICTED' : activeMission === 'Legend' ? '▶ RUN READY // LAUNCH' : '▶ STAND BY'}
                 </div>
                 <div style={{ fontSize: '0.62rem', opacity: 0.5, textTransform: 'uppercase' }}>Difficulty: ★★★★★</div>
               </div>
@@ -694,21 +754,22 @@ const ShieldDashboard = ({ stones = {}, trophy = false, snapKey = false, onLaunc
             {/* Game 8: Final Thanos Boss Battle */}
             <div style={{ width: '100%', marginTop: '5px' }}>
               <button 
-                className={`hud-btn gold ${snapKey ? 'completed' : ''}`}
+                className={`hud-btn gold ${snapKey ? 'completed' : !finalUnlocked ? 'locked' : 'active-pulse'}`}
                 style={{
                   width: '100%',
                   padding: '12px',
                   fontSize: '1rem',
                   borderWidth: '2px',
-                  borderColor: snapKey ? '#00FF66' : '#FFD84A',
-                  color: snapKey ? '#00FF66' : '#FFD84A',
-                  boxShadow: snapKey ? '0 0 20px rgba(0, 255, 102, 0.4)' : '0 0 20px rgba(255, 216, 74, 0.4)',
-                  background: 'rgba(5, 7, 11, 0.85)'
+                  borderColor: snapKey ? '#00FF66' : finalUnlocked ? '#FFD84A' : '#475569',
+                  color: snapKey ? '#00FF66' : finalUnlocked ? '#FFD84A' : '#475569',
+                  boxShadow: snapKey ? '0 0 20px rgba(0, 255, 102, 0.4)' : finalUnlocked ? '0 0 20px rgba(255, 216, 74, 0.4)' : 'none',
+                  background: 'rgba(5, 7, 11, 0.85)',
+                  cursor: finalUnlocked ? 'pointer' : 'not-allowed'
                 }}
-                onClick={() => onLaunchGame('Final')}
-                onMouseEnter={() => soundSystem.playTick()}
+                onClick={() => finalUnlocked && onLaunchGame('Final')}
+                onMouseEnter={() => finalUnlocked && soundSystem.playTick()}
               >
-                {snapKey ? `✅ THANOS DEFEATED [HI: ${highScores.Final}]` : '⚔️ AVENGERS FINAL BATTLE'}
+                {snapKey ? `✅ THANOS DEFEATED [HI: ${highScores.Final}]` : !finalUnlocked ? '🔒 OMEGA ACCESS RESTRICTED // DEPLOY ALL STONES & TROPHY' : '⚔️ AVENGERS FINAL BATTLE'}
               </button>
             </div>
 
@@ -885,6 +946,68 @@ const ShieldDashboard = ({ stones = {}, trophy = false, snapKey = false, onLaunc
             <div style={{ display: 'flex', justifyContent: 'center' }}>
               <button className="hud-btn" onClick={() => setShowSettings(false)}>
                 CLOSE
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 4. Holographic Statistics Readout Modal (Sprint 7) */}
+      {showStatsModal && (
+        <div 
+          className="portal-modal-overlay" 
+          style={{ zIndex: 1075, backgroundColor: 'rgba(5, 7, 11, 0.85)', backdropFilter: 'blur(6px)' }}
+        >
+          <div 
+            style={{
+              width: '90%',
+              maxWidth: '460px',
+              backgroundColor: '#05070b',
+              border: '2px solid #00f5ff',
+              borderRadius: '8px',
+              boxShadow: '0 0 25px rgba(0, 245, 255, 0.25)',
+              padding: '25px',
+              color: '#fff',
+              fontFamily: 'var(--font-hud)',
+              position: 'relative'
+            }}
+          >
+            <div className="hologram-scanlines" />
+
+            <div style={{ fontSize: '1.3rem', fontWeight: 900, color: '#00f5ff', letterSpacing: '3px', marginBottom: '15px', textTransform: 'uppercase' }}>
+              S.H.I.E.L.D. SIMULATOR READOUTS
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '25px', fontSize: '0.85rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(0,245,255,0.1)', paddingBottom: '3px' }}>
+                <span>TOTAL ACCUMULATED SCORE:</span>
+                <span style={{ color: '#00f5ff', fontWeight: 700 }}>{totalScore.toLocaleString()} PTS</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(0,245,255,0.1)', paddingBottom: '3px' }}>
+                <span>SIMULATION COMPLETIONS:</span>
+                <span style={{ color: '#00FF66', fontWeight: 700 }}>{globalProgressPercent}%</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(0,245,255,0.1)', paddingBottom: '3px' }}>
+                <span>FLIGHT TIME ELAPSED:</span>
+                <span>{totalPlayTime} SECONDS</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(0,245,255,0.1)', paddingBottom: '3px' }}>
+                <span>BEST ACTIVE COMBO:</span>
+                <span style={{ color: '#00FF66' }}>{localStorage.getItem('garvverse_maxcombo_Space') || 0}x</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(0,245,255,0.1)', paddingBottom: '3px' }}>
+                <span>COMPLETED DIRECTIVES:</span>
+                <span style={{ fontWeight: 700 }}>{completedMissions} / 8</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(0,245,255,0.1)', paddingBottom: '3px' }}>
+                <span>UNLOCKED achievements:</span>
+                <span style={{ color: '#ffd84a' }}>{achievements.length} / 4</span>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'center' }}>
+              <button className="hud-btn" onClick={() => { soundSystem.playClick(); setShowStatsModal(false); }}>
+                CLOSE DIAGNOSTICS
               </button>
             </div>
           </div>

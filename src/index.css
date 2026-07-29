@@ -1558,3 +1558,28 @@ body.scanlines-disabled .hologram-scanlines {
   0% { transform: scale(1.0); opacity: 0.95; }
   100% { transform: scale(1.08); opacity: 1; filter: drop-shadow(0 0 15px #00f5ff); }
 }
+
+/* Linear Progression map locks & active pulses styles (Sprint 7) */
+.arcade-game-card.locked,
+.hud-btn.locked {
+  opacity: 0.42 !important;
+  filter: grayscale(0.9) !important;
+  pointer-events: none !important;
+  cursor: not-allowed !important;
+}
+
+.arcade-game-card.active-pulse {
+  border-color: var(--stone-color, #00f5ff) !important;
+  animation: activeMissionPulse 2.0s infinite alternate ease-in-out !important;
+}
+
+@keyframes activeMissionPulse {
+  0% {
+    box-shadow: 0 0 10px rgba(var(--stone-rgb, 0, 245, 255), 0.25);
+    transform: scale(1.0);
+  }
+  100% {
+    box-shadow: 0 0 25px rgba(var(--stone-rgb, 0, 245, 255), 0.6);
+    transform: scale(1.02);
+  }
+}
