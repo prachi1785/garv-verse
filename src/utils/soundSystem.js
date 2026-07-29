@@ -49,6 +49,13 @@ class SoundSystem {
     this.startAmbientHum();
   }
 
+  setMasterVolume(percent) {
+    if (!this.ctx || !this.masterVolume) return;
+    const gainVal = (percent / 100) * 0.3;
+    this.masterVolume.gain.setValueAtTime(this.masterVolume.gain.value, this.ctx.currentTime);
+    this.masterVolume.gain.linearRampToValueAtTime(gainVal, this.ctx.currentTime + 0.05);
+  }
+
   setMute(isMuted) {
     this.muted = isMuted;
     if (!this.ctx) return;

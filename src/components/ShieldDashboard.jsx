@@ -28,6 +28,14 @@ const ShieldDashboard = ({
   const [scanlines, setScanlines] = useState(true);
   const [particlesIntensity, setParticlesIntensity] = useState('medium');
   const [reducedMotion, setReducedMotion] = useState(false);
+  const [settingsTab, setSettingsTab] = useState('general');
+  const [masterVol, setMasterVol] = useState(100);
+  const [sfxVol, setSfxVol] = useState(80);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Onboarding Wizard states (Sprint 9)
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onboardingStep, setOnboardingStep] = useState(1);
 
   // Earth Globe Canvas
   const earthCanvasRef = useRef(null);
@@ -63,7 +71,32 @@ const ShieldDashboard = ({
         setReducedMotion(false);
         document.body.classList.remove('reduced-motion');
       }
+      const savedMasterVol = localStorage.getItem('garvverse_pref_mastervol');
+      if (savedMasterVol !== null) {
+        const val = Number(savedMasterVol);
+        setMasterVol(val);
+        soundSystem.setMasterVolume(val);
+      }
+
+      const savedSfxVol = localStorage.getItem('garvverse_pref_sfxvol');
+      if (savedSfxVol !== null) {
+        setSfxVol(Number(savedSfxVol));
+      }
+
+      const onboarded = localStorage.getItem('garvverse_onboarded');
+      if (onboarded !== 'true') {
+        setShowOnboarding(true);
+      }
     } catch (e) {}
+  }, []);
+
+  // Sync fullscreen change state
+  useEffect(() => {
+    const handleFSChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFSChange);
+    return () => document.removeEventListener('fullscreenchange', handleFSChange);
   }, []);
 
   const toggleScanlinesSetting = () => {
@@ -517,8 +550,14 @@ const ShieldDashboard = ({
                   justifyContent: 'center',
                   alignItems: 'center',
                   fontSize: '1.5rem',
-                  backgroundColor: 'rgba(5, 7, 11, 0.85)'
+                  backgroundColor: 'rgba(5, 7, 11, 0.85)',
+                  cursor: 'pointer'
                 }}
+                onClick={() => {
+                  soundSystem.playStoneSocket();
+                  setFridayMsg("EASTER EGG UNLOCKED // clearance protocol 3000 online. 'I love you 3000.'");
+                }}
+                title="S.H.I.E.L.D. Biometric Scanner"
               >
                 👤
               </div>
@@ -929,7 +968,7 @@ const ShieldDashboard = ({
         </div>
       </div>
 
-      {/* Settings Modal */}
+      {/* Settings Modal (Upgraded Tabbed UI - Sprint 9) */}
       {showSettings && (
         <div 
           className="portal-modal-overlay" 
@@ -938,7 +977,7 @@ const ShieldDashboard = ({
           <div 
             style={{
               width: '90%',
-              maxWidth: '400px',
+              maxWidth: '430px',
               backgroundColor: '#05070b',
               border: '2px solid #00f5ff',
               borderRadius: '8px',
@@ -951,78 +990,193 @@ const ShieldDashboard = ({
           >
             <div className="hologram-scanlines" />
 
-            <div style={{ fontSize: '1.4rem', fontWeight: 900, color: '#00f5ff', letterSpacing: '3px', marginBottom: '15px' }}>
-              SYSTEM PREFERENCES
+            <div style={{ fontSize: '1.3rem', fontWeight: 900, color: '#00f5ff', letterSpacing: '3px', marginBottom: '15px' }}>
+              SEC-616 CONFIGURATION
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '25px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>HOLOGRAM SCANLINES:</span>
-                <button 
-                  className={`hud-btn ${scanlines ? 'gold' : ''}`}
-                  onClick={toggleScanlinesSetting}
-                  style={{ padding: '4px 12px', fontSize: '0.8rem' }}
-                >
-                  {scanlines ? 'ENABLED' : 'DISABLED'}
-                </button>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>CURSOR PARTICLES:</span>
-                <select 
-                  value={particlesIntensity}
-                  onChange={handleParticleSetting}
-                  style={{
-                    backgroundColor: '#05070b',
-                    color: '#00f5ff',
-                    border: '1px solid #00f5ff',
-                    fontFamily: 'var(--font-hud)',
-                    padding: '3px 8px',
-                    borderRadius: '4px'
-                  }}
-                >
-                  <option value="low">LOW</option>
-                  <option value="medium">MEDIUM</option>
-                  <option value="high">HIGH</option>
-                </select>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>REDUCED MOTION:</span>
-                <button 
-                  className={`hud-btn ${reducedMotion ? 'gold' : ''}`}
-                  onClick={toggleReducedMotionSetting}
-                  style={{ padding: '4px 12px', fontSize: '0.8rem' }}
-                >
-                  {reducedMotion ? 'ENABLED' : 'DISABLED'}
-                </button>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '10px' }}>
-                <span style={{ color: '#FFD84A', fontSize: '0.85rem', fontWeight: 900 }}>🛠️ RECRUITER DEMO:</span>
-                <button 
-                  className={`hud-btn ${demoModeActive ? 'gold' : ''}`}
-                  onClick={() => { soundSystem.playClick(); onToggleDemoMode(); }}
-                  style={{ padding: '4px 12px', fontSize: '0.75rem' }}
-                >
-                  {demoModeActive ? 'ACTIVE' : 'DEACTIVATED'}
-                </button>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px' }}>
-                <span style={{ fontSize: '0.8rem', opacity: 0.5 }}>FACTORY DEFAULTS:</span>
-                <button 
-                  className="hud-btn red" 
-                  onClick={clearPreferences}
-                  style={{ padding: '4px 10px', fontSize: '0.75rem' }}
-                >
-                  RESET PREFS
-                </button>
-              </div>
+            {/* Tab Nav Bar */}
+            <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid rgba(0, 245, 255, 0.25)', marginBottom: '15px', paddingBottom: '8px' }}>
+              <button 
+                className={`hud-btn ${settingsTab === 'general' ? 'gold' : ''}`}
+                style={{ padding: '3px 8px', fontSize: '0.7rem' }}
+                onClick={() => { soundSystem.playClick(); setSettingsTab('general'); }}
+              >
+                🖥️ SYSTEM
+              </button>
+              <button 
+                className={`hud-btn ${settingsTab === 'audio' ? 'gold' : ''}`}
+                style={{ padding: '3px 8px', fontSize: '0.7rem' }}
+                onClick={() => { soundSystem.playClick(); setSettingsTab('audio'); }}
+              >
+                🔊 AUDIO
+              </button>
+              <button 
+                className={`hud-btn ${settingsTab === 'about' ? 'gold' : ''}`}
+                style={{ padding: '3px 8px', fontSize: '0.7rem' }}
+                onClick={() => { soundSystem.playClick(); setSettingsTab('about'); }}
+              >
+                📂 ABOUT
+              </button>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'center' }}>
-              <button className="hud-btn" onClick={() => setShowSettings(false)}>
+            {/* Tab Contents */}
+            <div style={{ minHeight: '190px' }}>
+              
+              {settingsTab === 'general' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>HOLOGRAM SCANLINES:</span>
+                    <button 
+                      className={`hud-btn ${scanlines ? 'gold' : ''}`}
+                      onClick={toggleScanlinesSetting}
+                      style={{ padding: '4px 12px', fontSize: '0.75rem' }}
+                    >
+                      {scanlines ? 'ENABLED' : 'DISABLED'}
+                    </button>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>CURSOR PARTICLES:</span>
+                    <select 
+                      value={particlesIntensity}
+                      onChange={handleParticleSetting}
+                      style={{
+                        backgroundColor: '#05070b',
+                        color: '#00f5ff',
+                        border: '1px solid #00f5ff',
+                        fontFamily: 'var(--font-hud)',
+                        padding: '3px 8px',
+                        borderRadius: '4px',
+                        fontSize: '0.75rem'
+                      }}
+                    >
+                      <option value="low">LOW</option>
+                      <option value="medium">MEDIUM</option>
+                      <option value="high">HIGH</option>
+                    </select>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>REDUCED MOTION:</span>
+                    <button 
+                      className={`hud-btn ${reducedMotion ? 'gold' : ''}`}
+                      onClick={toggleReducedMotionSetting}
+                      style={{ padding: '4px 12px', fontSize: '0.75rem' }}
+                    >
+                      {reducedMotion ? 'ENABLED' : 'DISABLED'}
+                    </button>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>FULLSCREEN:</span>
+                    <button 
+                      className={`hud-btn ${isFullscreen ? 'gold' : ''}`}
+                      onClick={toggleFullscreen}
+                      style={{ padding: '4px 12px', fontSize: '0.75rem' }}
+                    >
+                      {isFullscreen ? 'ACTIVE' : 'GO FULLSCREEN'}
+                    </button>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '5px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '8px' }}>
+                    <span style={{ color: '#FFD84A', fontSize: '0.8rem', fontWeight: 900 }}>🛠️ RECRUITER DEMO:</span>
+                    <button 
+                      className={`hud-btn ${demoModeActive ? 'gold' : ''}`}
+                      onClick={() => { soundSystem.playClick(); onToggleDemoMode(); }}
+                      style={{ padding: '4px 12px', fontSize: '0.72rem' }}
+                    >
+                      {demoModeActive ? 'ACTIVE' : 'DEACTIVATED'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {settingsTab === 'audio' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem' }}>
+                      <span>MASTER VOLUME:</span>
+                      <span style={{ color: '#00f5ff' }}>{masterVol}%</span>
+                    </div>
+                    <input 
+                      type="range" 
+                      min="0" 
+                      max="100" 
+                      value={masterVol}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        setMasterVol(val);
+                        soundSystem.setMasterVolume(val);
+                        localStorage.setItem('garvverse_pref_mastervol', val);
+                      }}
+                      style={{ width: '100%', cursor: 'pointer', accentColor: '#00f5ff' }}
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem' }}>
+                      <span>MUSIC SYNTH HUM:</span>
+                      <span style={{ color: '#00f5ff' }}>60%</span>
+                    </div>
+                    <input 
+                      type="range" 
+                      min="0" 
+                      max="100" 
+                      defaultValue="60"
+                      style={{ width: '100%', cursor: 'pointer', accentColor: '#00f5ff' }}
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem' }}>
+                      <span>HUD SFX CHIME:</span>
+                      <span style={{ color: '#00f5ff' }}>{sfxVol}%</span>
+                    </div>
+                    <input 
+                      type="range" 
+                      min="0" 
+                      max="100" 
+                      value={sfxVol}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        setSfxVol(val);
+                        localStorage.setItem('garvverse_pref_sfxvol', val);
+                        soundSystem.playTick();
+                      }}
+                      style={{ width: '100%', cursor: 'pointer', accentColor: '#00f5ff' }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {settingsTab === 'about' && (
+                <div style={{ fontSize: '0.75rem', lineHeight: '1.45', opacity: 0.85, display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '180px', overflowY: 'auto', paddingRight: '5px' }}>
+                  <div><strong style={{ color: '#00f5ff' }}>PROJECT OVERVIEW:</strong> Garv Verse is an interactive Marvel Multiverse simulator showcasing high-fidelity gaming layouts.</div>
+                  <div><strong style={{ color: '#FFD84A' }}>CREATOR:</strong> Agent Garv (Prachi Chauhan)</div>
+                  <div><strong style={{ color: '#00FF66' }}>TECHNOLOGIES:</strong> React, Web Audio synthesis, WebGL canvas, GSAP timelines, and vanilla styling.</div>
+                  <div><strong style={{ color: '#e62429' }}>DESIGN INSPIRATION:</strong> Stark Jarvis system core and Sanctum portal transitions.</div>
+                </div>
+              )}
+
+            </div>
+
+            {/* Bottom Actions */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '20px', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '12px' }}>
+              <button 
+                className="hud-btn red" 
+                onClick={() => {
+                  soundSystem.playClick();
+                  if (window.confirm("RESET ALL CLEARANCE DATA?\nWarning: This deletes all scores, stones and progress levels!")) {
+                    localStorage.clear();
+                    window.location.reload();
+                  }
+                }}
+                style={{ padding: '4px 10px', fontSize: '0.72rem' }}
+              >
+                RESET PROGRESS
+              </button>
+
+              <button className="hud-btn" onClick={() => { soundSystem.playClick(); setShowSettings(false); }} style={{ padding: '4px 15px', fontSize: '0.75rem' }}>
                 CLOSE
               </button>
             </div>
@@ -1086,6 +1240,108 @@ const ShieldDashboard = ({
             <div style={{ display: 'flex', justifyContent: 'center' }}>
               <button className="hud-btn" onClick={() => { soundSystem.playClick(); setShowStatsModal(false); }}>
                 CLOSE DIAGNOSTICS
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 5. Version Panel / Release Notes trigger (Sprint 9) */}
+      <div 
+        style={{ 
+          position: 'fixed', 
+          bottom: '10px', 
+          right: '25px', 
+          fontSize: '0.62rem', 
+          opacity: 0.35, 
+          fontFamily: 'monospace',
+          cursor: 'pointer',
+          letterSpacing: '1px',
+          zIndex: 1000
+        }}
+        onClick={() => {
+          soundSystem.playClick();
+          alert("GARV VERSE v1.0.0-RC1 (RELEASE CANDIDATE)\n\nCOMPLETED SIM SYSTEMS:\n- Sprint 1: WebSwing core & procedural mechanics\n- Sprint 2: State engine manager structures\n- Sprint 3: Marvel Spider skyline training\n- Sprint 4: Combo multipliers & S-Rank triggers\n- Sprint 5: Parallax drift Command Center\n- Sprint 6: Dynamic Sparks reactor centerpiece\n- Sprint 7: Linear progressive simulator maps\n- Sprint 8: Recruiter Demo & accessibility settings\n- Sprint 9: Onboarding tour & volume preferences");
+        }}
+        title="Show System Release Notes"
+      >
+        ⚙️ SEC-616 // v1.0.0-RC1 (ACTIVE)
+      </div>
+
+      {/* 6. Skippable Onboarding Wizard Screen Modal (Sprint 9) */}
+      {showOnboarding && (
+        <div 
+          className="portal-modal-overlay" 
+          style={{ zIndex: 1100, backgroundColor: 'rgba(5, 7, 11, 0.94)', backdropFilter: 'blur(8px)' }}
+        >
+          <div 
+            style={{
+              width: '90%',
+              maxWidth: '450px',
+              backgroundColor: '#05070b',
+              border: '2px solid #FFD84A',
+              borderRadius: '8px',
+              boxShadow: '0 0 25px rgba(255, 216, 74, 0.25)',
+              padding: '25px',
+              color: '#fff',
+              fontFamily: 'var(--font-hud)',
+              position: 'relative'
+            }}
+          >
+            <div className="hologram-scanlines" />
+
+            <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#FFD84A', letterSpacing: '2px', marginBottom: '15px', textTransform: 'uppercase' }}>
+              🛡️ S.H.I.E.L.D. SECURE PROTOCOL INITIATION
+            </div>
+
+            {onboardingStep === 1 && (
+              <div style={{ fontSize: '0.82rem', lineHeight: '1.5', opacity: 0.9, marginBottom: '25px' }}>
+                <p>Welcome back, Agent. You have been cleared to access the <strong>S.H.I.E.L.D. Command Center console</strong>.</p>
+                <p>Your directive is to locate and engage spatial simulation matrices to secure vital timeline parameters.</p>
+              </div>
+            )}
+
+            {onboardingStep === 2 && (
+              <div style={{ fontSize: '0.82rem', lineHeight: '1.5', opacity: 0.9, marginBottom: '25px' }}>
+                <p style={{ color: '#00f5ff', fontWeight: 900, margin: '0 0 5px 0' }}>⚡ LINEAR SIMULATION MAP:</p>
+                <p>Simulations are structured sequentially. Complete target objectives to decrypt permission keys and lock coordinates for consecutive portals.</p>
+              </div>
+            )}
+
+            {onboardingStep === 3 && (
+              <div style={{ fontSize: '0.82rem', lineHeight: '1.5', opacity: 0.9, marginBottom: '25px' }}>
+                <p style={{ color: '#00FF66', fontWeight: 900, margin: '0 0 5px 0' }}>💎 INFINITY STONES & XP SYSTEMS:</p>
+                <p>Victoriously completing simulation portals yields Infinity Stones. Accumulate score points and XP levels to calibrates visor modules.</p>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <button 
+                className="hud-btn red" 
+                onClick={() => {
+                  soundSystem.playClick();
+                  localStorage.setItem('garvverse_onboarded', 'true');
+                  setShowOnboarding(false);
+                }}
+                style={{ padding: '5px 12px', fontSize: '0.75rem' }}
+              >
+                SKIP ONBOARDING
+              </button>
+
+              <button 
+                className="hud-btn gold" 
+                onClick={() => {
+                  soundSystem.playClick();
+                  if (onboardingStep < 3) {
+                    setOnboardingStep(prev => prev + 1);
+                  } else {
+                    localStorage.setItem('garvverse_onboarded', 'true');
+                    setShowOnboarding(false);
+                  }
+                }}
+                style={{ padding: '5px 15px', fontSize: '0.75rem' }}
+              >
+                {onboardingStep === 3 ? 'COMPLETE CLEARANCE' : 'NEXT PROTOCOL ➡️'}
               </button>
             </div>
           </div>
