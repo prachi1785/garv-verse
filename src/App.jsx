@@ -7,7 +7,7 @@ import SpaceCanvas from './components/SpaceCanvas';
 import LoadingScreen from './components/LoadingScreen';
 import ShieldDashboard from './components/ShieldDashboard';
 import InfinityGauntlet from './components/InfinityGauntlet';
-import MissionBriefingModal from './components/MissionBriefingModal';
+import ArcadePortal from './components/ArcadePortal';
 import SnapEffect from './components/SnapEffect';
 import HallOfHeroes from './components/HallOfHeroes';
 
@@ -65,6 +65,7 @@ function App() {
     setActiveGame(stoneName);
   };
 
+  // 2. Save stats to state and Local Storage on victory
   const handleGameComplete = (stoneName, finalScore, timeTaken, maxCombo) => {
     soundSystem.playClick();
 
@@ -78,6 +79,26 @@ function App() {
       const nextStones = { ...stones, [stoneName]: true };
       setStones(nextStones);
       localStorage.setItem('garvverse_stones', JSON.stringify(nextStones));
+    }
+
+    // Persist scores
+    try {
+      const prevHighScore = localStorage.getItem(`garvverse_highscore_${stoneName}`) || 0;
+      if (finalScore > prevHighScore) {
+        localStorage.setItem(`garvverse_highscore_${stoneName}`, finalScore);
+      }
+
+      const prevBestTime = localStorage.getItem(`garvverse_besttime_${stoneName}`) || 99999;
+      if (timeTaken < prevBestTime) {
+        localStorage.setItem(`garvverse_besttime_${stoneName}`, timeTaken);
+      }
+
+      const prevBestCombo = localStorage.getItem(`garvverse_bestcombo_${stoneName}`) || 0;
+      if (maxCombo > prevBestCombo) {
+        localStorage.setItem(`garvverse_bestcombo_${stoneName}`, maxCombo);
+      }
+    } catch (e) {
+      console.error("Failed to persist high scores:", e);
     }
 
     setActiveGame(null);
@@ -107,6 +128,14 @@ function App() {
     localStorage.removeItem('garvverse_trophy');
     localStorage.removeItem('garvverse_snapkey');
     
+    // Reset high scores
+    const games = ['Space', 'Mind', 'Reality', 'Power', 'Time', 'Soul', 'Legend', 'Final'];
+    games.forEach((game) => {
+      localStorage.removeItem(`garvverse_highscore_${game}`);
+      localStorage.removeItem(`garvverse_besttime_${game}`);
+      localStorage.removeItem(`garvverse_bestcombo_${game}`);
+    });
+
     setStones({
       Space: false,
       Mind: false,
@@ -200,11 +229,12 @@ function App() {
         </div>
       )}
 
-      {/* Active Game Briefing Overlay Modal (Sprint 1 directive) */}
+      {/* Active Game Portal Overlay Modal */}
       {activeGame && (
-        <MissionBriefingModal 
-          missionKey={activeGame} 
+        <ArcadePortal 
+          stoneName={activeGame} 
           onClose={() => setActiveGame(null)} 
+          onGameComplete={handleGameComplete}
         />
       )}
 

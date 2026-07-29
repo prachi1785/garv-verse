@@ -1,36 +1,28 @@
 import React, { useEffect, useState, useRef } from 'react';
 import gsap from 'gsap';
 import soundSystem from '../utils/soundSystem';
-
-// Import upgraded games
-import SpiderSwingGame from './games/SpiderSwingGame';
-import FlightSimGame from './games/FlightSimGame';
-import ShieldCombatGame from './games/ShieldCombatGame';
-import StarkKartGame from './games/StarkKartGame';
-import GhostRiderGame from './games/GhostRiderGame';
-import PortalEscapeGame from './games/PortalEscapeGame';
-import UltronSurvivalGame from './games/UltronSurvivalGame';
-import AvengersBattleGame from './games/AvengersBattleGame';
+import MissionPlaceholderGameplay from './MissionPlaceholderGameplay';
 
 const ArcadePortal = ({ stoneName, onClose, onGameComplete }) => {
-  const [phase, setPhase] = useState('opening'); // opening -> countdown -> playing -> victory -> summary -> done
+  // Centralized State Machine
+  // States: AVAILABLE -> LOADING -> COUNTDOWN -> PLAYING -> PAUSED -> VICTORY / GAME_OVER -> REWARD -> COMPLETE -> RETURNING
+  const [missionState, setMissionState] = useState('AVAILABLE');
+  
   const [countdownVal, setCountdownVal] = useState(3);
-  const [isPaused, setIsPaused] = useState(false);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
 
-  // Gameplay HUD states
+  // Stats
   const [score, setScore] = useState(0);
   const [highScore, setHighScore] = useState(0);
   const [combo, setCombo] = useState(1);
   const [maxCombo, setMaxCombo] = useState(1);
   const [health, setHealth] = useState(100);
   const [timeLeft, setTimeLeft] = useState(40);
+  const [timeTaken, setTimeTaken] = useState(0);
   
-  // Results summary states
-  const [results, setResults] = useState(null);
   const [stoneVisible, setStoneVisible] = useState(false);
 
-  const timerRef = useRef(null);
+  const timerInterval = useRef(null);
   const startTime = useRef(0);
   const timeElapsed = useRef(0);
 
@@ -45,30 +37,28 @@ const ArcadePortal = ({ stoneName, onClose, onGameComplete }) => {
     Final: '#FFFFFF'
   };
 
-  const gameObjectives = {
-    Space: 'Swing to the finish. Collect tokens. Avoid red drones.',
-    Mind: 'Fly through Stark City. Shoot drones. Gather blue reactor cores.',
-    Reality: 'Bounce shield to break crates and defeat red bots.',
-    Power: 'Drift through the race track. Beat the opponent kart in 3 laps.',
-    Time: 'Weave highway traffic. Hold SPACE for Nitro. Reach 3000m.',
-    Soul: 'Platform jump. Press Space to jump spikes. Portals shift gravity.',
-    Legend: 'WASD to move, aim mouse and shoot. Survive 90 seconds.',
-    Final: 'Switch heroes with 1, 2, 3. Defeat Thanos with combining combat.'
+  const missionDetails = {
+    Space: { name: 'Space Stone Retrieval', difficulty: 'Normal', time: '40s', obj: 'Calibrate reactor core anomalies. Click targets to harvest space coordinates.', reward: 'Space Stone' },
+    Mind: { name: 'Mind Stone Acquisition', difficulty: 'Normal', time: '40s', obj: 'Calibrate reactor core anomalies. Click targets to harvest mind coordinates.', reward: 'Mind Stone' },
+    Reality: { name: 'Reality Stone Stabilization', difficulty: 'High', time: '40s', obj: 'Calibrate reactor core anomalies. Click targets to harvest reality coordinates.', reward: 'Reality Stone' },
+    Power: { name: 'Power Stone Calibration', difficulty: 'Normal', time: '40s', obj: 'Calibrate reactor core anomalies. Click targets to harvest power coordinates.', reward: 'Power Stone' },
+    Time: { name: 'Time Stone Manipulation', difficulty: 'Extreme', time: '40s', obj: 'Calibrate reactor core anomalies. Click targets to harvest temporal coordinates.', reward: 'Time Stone' },
+    Soul: { name: 'Soul Stone Sacrifice', difficulty: 'Extreme', time: '40s', obj: 'Calibrate reactor core anomalies. Click targets to harvest bio-signatures.', reward: 'Soul Stone' },
+    Legend: { name: 'Ultron Survival Training', difficulty: 'Critical', time: '40s', obj: 'Calibrate reactor core anomalies. Click targets to harvest legend clearances.', reward: 'Legend Trophy' },
+    Final: { name: 'Avengers Final Stand', difficulty: 'Omega', time: '40s', obj: 'Calibrate reactor core anomalies. Click targets to defeat Thanos coordinate grids.', reward: 'Snap Key' }
   };
+
+  const currentDetails = missionDetails[stoneName] || { name: 'Unknown Mission', difficulty: 'Normal', time: '40s', obj: 'Calibrate coordinates.', reward: 'None' };
 
   // Load High Score on Mount
   useEffect(() => {
     try {
       const stored = localStorage.getItem(`garvverse_highscore_${stoneName}`) || 0;
       setHighScore(Number(stored));
-      
-      // Default time limit adjustments per game
-      if (stoneName === 'Legend') setTimeLeft(90);
-      else if (stoneName === 'Time') setTimeLeft(60);
-      else setTimeLeft(40);
+      console.log(`[DEBUG] MissionManager: [${stoneName}] Initialized. High Score: ${stored}`);
     } catch(e) {}
 
-    // Intro Entrance
+    // Intro Entrance portal
     soundSystem.playPortalSwoosh();
     gsap.fromTo('.doctor-strange-portal-frame',
       { scale: 0.05, rotation: 0, opacity: 0 },
@@ -76,8 +66,20 @@ const ArcadePortal = ({ stoneName, onClose, onGameComplete }) => {
     );
   }, [stoneName]);
 
+  // Handle LOADING Boot sequences
+  useEffect(() => {
+    if (missionState === 'LOADING') {
+      console.log('[DEBUG] MissionManager: Loading diagnostic sequence booted');
+      const timer = setTimeout(() => {
+        setMissionState('COUNTDOWN');
+        startCountdown();
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [missionState]);
+
   const startCountdown = () => {
-    setPhase('countdown');
+    console.log('[DEBUG] MissionManager: Countdown starting');
     let count = 3;
     setCountdownVal(3);
     soundSystem.playTick();
@@ -89,7 +91,8 @@ const ArcadePortal = ({ stoneName, onClose, onGameComplete }) => {
         setCountdownVal('START');
         soundSystem.playClick();
         setTimeout(() => {
-          setPhase('playing');
+          setMissionState('PLAYING');
+          console.log('[DEBUG] MissionManager: Gameplay started');
           startTime.current = Date.now();
           startTimer();
         }, 600);
@@ -100,68 +103,43 @@ const ArcadePortal = ({ stoneName, onClose, onGameComplete }) => {
     }, 850);
   };
 
-  useEffect(() => {
-    if (phase === 'countdown') {
-      // do nothing, interval handles
-    } else if (phase === 'opening') {
-      const timer = setTimeout(() => {
-        startCountdown();
-      }, 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [phase]);
-
-  // Game timer loop
   const startTimer = () => {
-    if (timerRef.current) clearInterval(timerRef.current);
+    if (timerInterval.current) clearInterval(timerInterval.current);
     
-    timerRef.current = setInterval(() => {
-      if (isPaused) return;
-
+    timerInterval.current = setInterval(() => {
       setTimeLeft((prev) => {
-        if (stoneName !== 'Legend' && stoneName !== 'Time' && prev <= 1) {
-          clearInterval(timerRef.current);
+        if (prev <= 1) {
+          clearInterval(timerInterval.current);
           handleLoss();
           return 0;
         }
         
-        // Count up time elapsed
         timeElapsed.current = Math.floor((Date.now() - startTime.current) / 1000);
-        
-        // Legend game ends by surviving time down
-        if (stoneName === 'Legend') {
-          // decrement time left
-          return prev - 1;
-        }
-        
+        setTimeTaken(timeElapsed.current);
         return prev - 1;
       });
     }, 1000);
   };
 
-  const pauseGame = () => {
+  const handlePause = () => {
+    console.log('[DEBUG] MissionManager: Mission Paused');
+    setMissionState('PAUSED');
     soundSystem.playClick();
-    setIsPaused(true);
   };
 
-  const resumeGame = () => {
+  const handleResume = () => {
+    console.log('[DEBUG] MissionManager: Mission Resumed');
+    setMissionState('PLAYING');
     soundSystem.playClick();
-    setIsPaused(false);
   };
 
-  const confirmExit = () => {
-    soundSystem.playClick();
-    clearInterval(timerRef.current);
+  const handleExitSafely = () => {
+    console.log('[DEBUG] MissionManager: Exiting safely and disposing resources');
+    if (timerInterval.current) clearInterval(timerInterval.current);
     onClose();
   };
 
-  const cancelExit = () => {
-    soundSystem.playClick();
-    setShowExitConfirm(false);
-    setIsPaused(false);
-  };
-
-  // Communication callbacks from inner games
+  // Callbacks from placeholder gameplay
   const handleScoreUpdate = (newScore) => {
     setScore(newScore);
   };
@@ -176,17 +154,23 @@ const ArcadePortal = ({ stoneName, onClose, onGameComplete }) => {
   };
 
   const handleLoss = () => {
-    clearInterval(timerRef.current);
-    setPhase('done'); // show simple loss screen
+    console.log('[DEBUG] MissionManager: Game Over state triggered');
+    if (timerInterval.current) clearInterval(timerInterval.current);
+    setMissionState('GAME_OVER');
     soundSystem.playClick();
+    
+    setTimeout(() => {
+      setMissionState('COMPLETE');
+    }, 1500);
   };
 
-  const handleWin = (finalScore = score, accuracy = 100) => {
-    if (timerRef.current) clearInterval(timerRef.current);
-    setPhase('victory');
+  const handleWin = (finalScore = score) => {
+    console.log('[DEBUG] MissionManager: Victory state triggered');
+    if (timerInterval.current) clearInterval(timerInterval.current);
+    setMissionState('VICTORY');
     soundSystem.playStoneSocket();
 
-    // GSAP camera zoom shake
+    // Zoom and shake portal
     gsap.to('.portal-game-window', {
       scale: 1.04,
       boxShadow: `0 0 45px ${stoneColors[stoneName]}`,
@@ -199,36 +183,19 @@ const ArcadePortal = ({ stoneName, onClose, onGameComplete }) => {
       { x: 0, y: 0, duration: 0.05, repeat: 8, yoyo: true }
     );
 
-    // Calculate Rank
-    let rank = 'C';
-    const computedScore = finalScore || score;
-    if (computedScore >= 1500 || health >= 90) rank = 'S';
-    else if (computedScore >= 1200 || health >= 75) rank = 'A';
-    else if (computedScore >= 800) rank = 'B';
-
-    const isNewHigh = computedScore > highScore;
-
-    const summary = {
-      score: computedScore,
-      highScore: isNewHigh ? computedScore : highScore,
-      timeTaken: timeElapsed.current || 25,
-      maxCombo: maxCombo,
-      rank: rank,
-      isNewHighScore: isNewHigh
-    };
-
-    setResults(summary);
-
-    // Save automatically
+    // Transition to Reward
     setTimeout(() => {
+      setMissionState('REWARD');
+      console.log('[DEBUG] MissionManager: Reward state triggered');
       setStoneVisible(true);
-      
+
       const stoneEl = document.querySelector('.flying-stone-glow');
       if (stoneEl) {
         const tl = gsap.timeline({
           onComplete: () => {
             soundSystem.playAvengersFanfare();
-            setPhase('summary');
+            setMissionState('COMPLETE');
+            console.log('[DEBUG] MissionManager: Complete stats screen triggered');
           }
         });
 
@@ -248,54 +215,41 @@ const ArcadePortal = ({ stoneName, onClose, onGameComplete }) => {
     }, 1400);
   };
 
-  const handleReturn = () => {
-    soundSystem.playClick();
-    onGameComplete(stoneName, score, timeElapsed.current, maxCombo);
+  const handleReturnDashboard = () => {
+    console.log('[DEBUG] MissionManager: Returning to dashboard');
+    setMissionState('RETURNING');
+    gsap.to('.doctor-strange-portal-frame', {
+      scale: 0.01,
+      rotation: -360,
+      opacity: 0,
+      duration: 0.5,
+      onComplete: () => {
+        // Save stats to Local Storage
+        onGameComplete(stoneName, score, timeTaken, maxCombo);
+      }
+    });
   };
 
   const handleReplay = () => {
-    soundSystem.playClick();
+    console.log('[DEBUG] MissionManager: Replaying mission');
     setScore(0);
     setCombo(1);
     setMaxCombo(1);
     setHealth(100);
-    setTimeLeft(stoneName === 'Legend' ? 90 : 40);
-    setPhase('countdown');
+    setTimeLeft(40);
+    setTimeTaken(0);
+    setMissionState('COUNTDOWN');
     startCountdown();
   };
 
-  const renderActiveGame = () => {
-    // Inject custom score and combo listeners into the games dynamically
-    const props = {
-      onWin: handleWin,
-      onLoss: handleLoss,
-      onScoreUpdate: handleScoreUpdate,
-      onComboUpdate: handleComboUpdate,
-      onHealthUpdate: handleHealthUpdate,
-      isPaused: isPaused
-    };
-
-    switch (stoneName) {
-      case 'Space':
-        return <SpiderSwingGame {...props} />;
-      case 'Mind':
-        return <FlightSimGame {...props} />;
-      case 'Reality':
-        return <ShieldCombatGame {...props} />;
-      case 'Power':
-        return <StarkKartGame {...props} />;
-      case 'Time':
-        return <GhostRiderGame {...props} />;
-      case 'Soul':
-        return <PortalEscapeGame {...props} />;
-      case 'Legend':
-        return <UltronSurvivalGame {...props} />;
-      case 'Final':
-        return <AvengersBattleGame {...props} />;
-      default:
-        return <div>Unknown Dimension Portal</div>;
-    }
+  const getRank = (finalScore) => {
+    if (finalScore >= 1200 && health >= 90) return 'S';
+    if (finalScore >= 800) return 'A';
+    if (finalScore >= 500) return 'B';
+    return 'C';
   };
+
+  const rank = getRank(score);
 
   return (
     <div className="portal-modal-overlay" style={{ zIndex: 1050 }}>
@@ -304,12 +258,12 @@ const ArcadePortal = ({ stoneName, onClose, onGameComplete }) => {
         <div className="portal-runes-ring2" />
         <div className="portal-fire-sparks" />
         
-        {/* Game Area */}
+        {/* Game portal frame */}
         <div className="portal-game-window" style={{ borderRadius: '8px', padding: '15px' }}>
           <div className="hologram-scanlines" />
 
           {/* HUD (playing phase) */}
-          {phase === 'playing' && (
+          {missionState === 'PLAYING' && (
             <div 
               style={{
                 width: '100%',
@@ -324,11 +278,12 @@ const ArcadePortal = ({ stoneName, onClose, onGameComplete }) => {
               }}
             >
               <div style={{ color: stoneColors[stoneName] }}>SCORE: {score} [HI: {highScore}]</div>
-              <div style={{ color: '#FFD84A' }}>OBJ: {gameObjectives[stoneName]}</div>
-              <div style={{ color: '#00F5FF' }}>TIMER: {timeLeft}s</div>
+              <div style={{ color: '#00F5FF' }}>OBJ: {currentDetails.obj}</div>
+              <div style={{ color: '#ffd84a' }}>COMBO: {combo}x // LIFE: {health}%</div>
+              <div style={{ color: '#00F5FF' }}>TIME: {timeLeft}s</div>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button 
-                  onClick={isPaused ? resumeGame : pauseGame}
+                  onClick={handlePause}
                   style={{
                     background: 'none',
                     border: 'none',
@@ -338,10 +293,10 @@ const ArcadePortal = ({ stoneName, onClose, onGameComplete }) => {
                     cursor: 'pointer'
                   }}
                 >
-                  {isPaused ? 'RESUME' : 'PAUSE'}
+                  PAUSE
                 </button>
                 <button 
-                  onClick={() => { setIsPaused(true); setShowExitConfirm(true); }}
+                  onClick={() => { setMissionState('PAUSED'); setShowExitConfirm(true); }}
                   style={{
                     background: 'none',
                     border: 'none',
@@ -357,17 +312,60 @@ const ArcadePortal = ({ stoneName, onClose, onGameComplete }) => {
             </div>
           )}
 
-          {/* Gameplay Content */}
-          {phase === 'playing' && renderActiveGame()}
+          {/* Render states */}
 
-          {/* Opening / Loading countdowns */}
-          {phase === 'opening' && (
-            <div style={{ fontFamily: 'var(--font-hud)', color: 'var(--stark-gold)', fontSize: '1.6rem', letterSpacing: '4px' }}>
-              STARK MULTIVERSE CORE BOOTING...
+          {/* 1. AVAILABLE (Briefing Modal inside Manager) */}
+          {missionState === 'AVAILABLE' && (
+            <div style={{ fontFamily: 'var(--font-hud)', color: '#fff', textAlign: 'center', maxWidth: '440px' }}>
+              <div style={{ fontSize: '1.4rem', color: stoneColors[stoneName], fontWeight: 900, letterSpacing: '2px', marginBottom: '5px' }}>
+                {currentDetails.name.toUpperCase()}
+              </div>
+              <div style={{ fontSize: '0.75rem', opacity: 0.5, letterSpacing: '3px', marginBottom: '15px' }}>
+                MISSION BRIEFING DIRECTIVE
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.9rem', textAlign: 'left', marginBottom: '20px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '4px' }}>
+                  <span style={{ opacity: 0.6 }}>DIFFICULTY:</span>
+                  <span style={{ color: '#ffd84a' }}>Threat Level: {currentDetails.difficulty}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '4px' }}>
+                  <span style={{ opacity: 0.6 }}>DURATION:</span>
+                  <span>{currentDetails.time}</span>
+                </div>
+                <div style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '6px' }}>
+                  <span style={{ opacity: 0.6, display: 'block', marginBottom: '2px' }}>TACTICAL OBJECTIVE:</span>
+                  <span style={{ fontSize: '0.8rem', opacity: 0.85 }}>{currentDetails.obj}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ opacity: 0.6 }}>REWARD CORES:</span>
+                  <span style={{ color: '#00ff66' }}>{currentDetails.reward}</span>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '15px', justifyContent: 'center' }}>
+                <button className="hud-btn gold" onClick={() => setMissionState('LOADING')}>
+                  BEGIN MISSION
+                </button>
+                <button className="hud-btn" onClick={onClose}>
+                  RETURN
+                </button>
+              </div>
             </div>
           )}
 
-          {phase === 'countdown' && (
+          {/* 2. LOADING (System Diagnostic Logs) */}
+          {missionState === 'LOADING' && (
+            <div style={{ fontFamily: 'var(--font-hud)', color: '#00f5ff', fontSize: '1.2rem', letterSpacing: '4px', textAlign: 'center' }}>
+              <div>STARK SIMULATOR INITIALIZING...</div>
+              <div style={{ color: '#fff', opacity: 0.5, fontSize: '0.8rem', marginTop: '10px' }}>
+                CALIBRATING QUANTUM REACTION CORE ANOMALIES
+              </div>
+            </div>
+          )}
+
+          {/* 3. COUNTDOWN (3-2-1 Beeps) */}
+          {missionState === 'COUNTDOWN' && (
             <div 
               style={{
                 fontFamily: 'var(--font-title)',
@@ -381,8 +379,47 @@ const ArcadePortal = ({ stoneName, onClose, onGameComplete }) => {
             </div>
           )}
 
-          {/* Victory Cinematic */}
-          {phase === 'victory' && (
+          {/* 4. PLAYING (Active placeholder gameplay container) */}
+          {missionState === 'PLAYING' && (
+            <MissionPlaceholderGameplay 
+              onWin={handleWin}
+              onLoss={handleLoss}
+              onScoreUpdate={handleScoreUpdate}
+              onComboUpdate={handleComboUpdate}
+              onHealthUpdate={handleHealthUpdate}
+              isPaused={false}
+            />
+          )}
+
+          {/* 5. PAUSED Overlay */}
+          {missionState === 'PAUSED' && !showExitConfirm && (
+            <div 
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                backgroundColor: 'rgba(5, 7, 11, 0.8)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 1090,
+                borderRadius: '8px'
+              }}
+            >
+              <div style={{ fontFamily: 'var(--font-hud)', fontSize: '2rem', color: '#00f5ff', marginBottom: '20px', letterSpacing: '4px' }}>
+                PAUSED
+              </div>
+              <button className="hud-btn" onClick={handleResume}>
+                RESUME MISSION
+              </button>
+            </div>
+          )}
+
+          {/* 6. VICTORY banner */}
+          {missionState === 'VICTORY' && (
             <div style={{ textAlign: 'center' }}>
               <div 
                 style={{
@@ -395,25 +432,21 @@ const ArcadePortal = ({ stoneName, onClose, onGameComplete }) => {
               >
                 MISSION COMPLETE
               </div>
-              {results?.isNewHighScore && (
-                <div 
-                  style={{ 
-                    fontFamily: 'var(--font-hud)', 
-                    color: '#FFD84A', 
-                    fontSize: '1.5rem', 
-                    fontWeight: 900,
-                    animation: 'pulseGlow 0.4s infinite alternate',
-                    marginTop: '10px'
-                  }}
-                >
-                  🏆 NEW HIGH SCORE!
-                </div>
-              )}
             </div>
           )}
 
-          {/* Flying Stone Materializer */}
-          {phase === 'victory' && stoneVisible && (
+          {/* 7. GAME OVER banner */}
+          {missionState === 'GAME_OVER' && (
+            <div style={{ textAlign: 'center', fontFamily: 'var(--font-hud)' }}>
+              <div style={{ fontSize: '2.5rem', color: '#E62429', textShadow: '0 0 15px #E62429', fontWeight: 900, letterSpacing: '4px' }}>
+                MISSION FAILED
+              </div>
+              <div style={{ opacity: 0.6, marginTop: '8px' }}>Timeline coordinates collapsed. Review specifications and redeploy.</div>
+            </div>
+          )}
+
+          {/* 8. REWARD Animate Stone */}
+          {missionState === 'REWARD' && stoneVisible && (
             <div 
               className="flying-stone-glow"
               style={{
@@ -428,13 +461,13 @@ const ArcadePortal = ({ stoneName, onClose, onGameComplete }) => {
             />
           )}
 
-          {/* Results Summary Modal Overlay */}
-          {phase === 'summary' && results && (
+          {/* 9. COMPLETE (Standardized Reusable Results Screen) */}
+          {missionState === 'COMPLETE' && (
             <div 
               style={{
                 width: '90%',
                 maxHeight: '95%',
-                backgroundColor: 'rgba(5, 7, 11, 0.9)',
+                backgroundColor: 'rgba(5, 7, 11, 0.95)',
                 border: `2px solid ${stoneColors[stoneName]}`,
                 borderRadius: '8px',
                 boxShadow: `0 0 30px ${stoneColors[stoneName]}33`,
@@ -447,75 +480,57 @@ const ArcadePortal = ({ stoneName, onClose, onGameComplete }) => {
                 zIndex: 1100
               }}
             >
-              <div style={{ fontSize: '1.8rem', fontWeight: 900, letterSpacing: '3px', color: stoneColors[stoneName] }}>
+              <div style={{ fontSize: '1.6rem', fontWeight: 900, letterSpacing: '3px', color: stoneColors[stoneName] }}>
                 MISSION EVALUATION
               </div>
-              <div style={{ fontSize: '0.8rem', opacity: 0.6, letterSpacing: '4px', marginTop: '4px' }}>
+              <div style={{ fontSize: '0.75rem', opacity: 0.5, letterSpacing: '4px', marginTop: '4px', marginBottom: '15px' }}>
                 STARK SIMULATOR RESULTS
               </div>
 
-              {/* Stats table */}
-              <div style={{ width: '100%', margin: '20px 0', fontSize: '1.1rem', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '6px' }}>
-                  <span>SIMULATOR:</span>
-                  <span style={{ fontWeight: 700 }}>{stoneName} Challenge</span>
+              {/* Scorecard table */}
+              <div style={{ width: '100%', marginBottom: '20px', fontSize: '1rem', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '4px' }}>
+                  <span>MISSION NAME:</span>
+                  <span style={{ fontWeight: 700 }}>{currentDetails.name}</span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '6px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '4px' }}>
                   <span>FINAL SCORE:</span>
-                  <span style={{ color: '#00F5FF', fontWeight: 700 }}>{results.score}</span>
+                  <span style={{ color: '#00F5FF', fontWeight: 700 }}>{score}</span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '6px' }}>
-                  <span>RECORD SCORE:</span>
-                  <span style={{ color: '#FFD84A', fontWeight: 700 }}>{results.highScore}</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '4px' }}>
+                  <span>HIGH RECORD:</span>
+                  <span style={{ color: '#FFD84A', fontWeight: 700 }}>{score > highScore ? score : highScore}</span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '6px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '4px' }}>
                   <span>ELAPSED TIME:</span>
-                  <span>{results.timeTaken} seconds</span>
+                  <span>{timeTaken} seconds</span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '6px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '4px' }}>
                   <span>MAX COMBO:</span>
-                  <span style={{ color: '#00FF66' }}>{results.maxCombo}x</span>
+                  <span style={{ color: '#00FF66' }}>{maxCombo}x</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span>PERFORMANCE RANK:</span>
                   <span 
                     style={{ 
-                      fontSize: '2.5rem', 
+                      fontSize: '2.2rem', 
                       fontWeight: 900, 
-                      color: results.rank === 'S' ? '#FFD84A' : results.rank === 'A' ? '#00FF66' : '#00F5FF',
-                      textShadow: `0 0 10px ${results.rank === 'S' ? '#FFD84A' : '#00FF66'}`
+                      color: rank === 'S' ? '#FFD84A' : rank === 'A' ? '#00FF66' : '#00F5FF',
+                      textShadow: `0 0 10px ${rank === 'S' ? '#FFD84A' : '#00FF66'}`
                     }}
                   >
-                    {results.rank}
+                    {rank}
                   </span>
                 </div>
               </div>
 
               {/* Action buttons */}
-              <div style={{ display: 'flex', gap: '15px', width: '100%', justifyContent: 'center', marginTop: '10px' }}>
+              <div style={{ display: 'flex', gap: '15px', width: '100%', justifyContent: 'center' }}>
                 <button className="hud-btn" onClick={handleReplay}>
-                  PLAY AGAIN
+                  REPLAY
                 </button>
-                <button className="hud-btn gold" onClick={handleReturn}>
-                  DASHBOARD
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Loss / Game Over State */}
-          {phase === 'done' && (
-            <div style={{ textAlign: 'center', fontFamily: 'var(--font-hud)' }}>
-              <div style={{ fontSize: '2.4rem', color: '#E62429', textShadow: '0 0 15px #E62429', fontWeight: 900, letterSpacing: '4px' }}>
-                SIMULATION FAILED
-              </div>
-              <div style={{ opacity: 0.6, margin: '15px 0' }}>The timeline stability has been compromised. Try again.</div>
-              <div style={{ display: 'flex', gap: '15px', justifyContent: 'center' }}>
-                <button className="hud-btn" onClick={handleReplay}>
-                  RETRY
-                </button>
-                <button className="hud-btn red" onClick={confirmExit}>
-                  EXIT
+                <button className="hud-btn gold" onClick={handleReturnDashboard}>
+                  RETURN DASHBOARD
                 </button>
               </div>
             </div>
@@ -539,44 +554,17 @@ const ArcadePortal = ({ stoneName, onClose, onGameComplete }) => {
                 borderRadius: '8px'
               }}
             >
-              <div style={{ fontFamily: 'var(--font-hud)', fontSize: '1.4rem', color: '#E62429', marginBottom: '20px', letterSpacing: '2px' }}>
-                EXIT CURRENT SIMULATION?
+              <div style={{ fontFamily: 'var(--font-hud)', fontSize: '1.3rem', color: '#E62429', marginBottom: '20px', letterSpacing: '2px' }}>
+                ABORT DIRECTIVE SIMULATION?
               </div>
               <div style={{ display: 'flex', gap: '15px' }}>
-                <button className="hud-btn red" onClick={confirmExit}>
-                  YES, ABORT
+                <button className="hud-btn red" onClick={handleExitSafely}>
+                  YES, EXIT
                 </button>
-                <button className="hud-btn" onClick={cancelExit}>
+                <button className="hud-btn" onClick={() => { setShowExitConfirm(false); setMissionState('PLAYING'); }}>
                   NO, CONTINUE
                 </button>
               </div>
-            </div>
-          )}
-
-          {/* Pause overlay screen */}
-          {isPaused && !showExitConfirm && (
-            <div 
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                height: '100%',
-                backgroundColor: 'rgba(5, 7, 11, 0.75)',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                zIndex: 1090,
-                borderRadius: '8px'
-              }}
-            >
-              <div style={{ fontFamily: 'var(--font-hud)', fontSize: '2rem', color: '#00F5FF', marginBottom: '20px', letterSpacing: '4px' }}>
-                PAUSED
-              </div>
-              <button className="hud-btn" onClick={resumeGame}>
-                RESUME PLAYING
-              </button>
             </div>
           )}
 
