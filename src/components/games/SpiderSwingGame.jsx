@@ -123,11 +123,12 @@ const SpiderSwingGame = ({
     if (!canvas) return;
 
     canvas.width = canvas.parentElement.clientWidth;
-    canvas.height = 180;
+    canvas.height = canvas.parentElement.clientHeight || 180;
 
     const laneWidth = canvas.width / 4;
     player.current.x = laneWidth * 2;
     player.current.targetX = laneWidth * 2;
+    player.current.y = canvas.height - 40;
 
     generateBuildings(canvas);
 
@@ -216,7 +217,7 @@ const SpiderSwingGame = ({
         x: i * (canvas.width / 5),
         y: 40 + Math.random() * 50,
         w: 50 + Math.random() * 25,
-        h: 150
+        h: canvas.height * 0.9
       });
     }
   };
@@ -686,7 +687,7 @@ const SpiderSwingGame = ({
       <canvas 
         ref={canvasRef} 
         className="game-canvas-element"
-        style={{ height: '150px' }}
+        style={{ width: '100%', height: 'calc(100% - 24px)', display: 'block' }}
       />
       
       {/* Dynamic F.R.I.D.A.Y AI holographic console subtitles */}

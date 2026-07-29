@@ -1366,3 +1366,85 @@ body {
 body.scanlines-disabled .hologram-scanlines {
   display: none !important;
 }
+
+/* Dashboard Hide Transition */
+.dashboard-wrapper {
+  transition: opacity 0.8s cubic-bezier(0.25, 1, 0.5, 1), filter 0.8s cubic-bezier(0.25, 1, 0.5, 1) !important;
+}
+.dashboard-wrapper.dashboard-fade-out {
+  opacity: 0 !important;
+  filter: blur(12px) !important;
+  pointer-events: none !important;
+}
+
+/* Fullscreen Overrides for Reusable Mission Engine */
+.portal-modal-overlay.is-fullscreen {
+  background-color: #05070b !important;
+  transition: background-color 0.8s ease;
+}
+
+.portal-modal-overlay.is-fullscreen .doctor-strange-portal-frame {
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: none !important;
+  max-height: none !important;
+  transition: all 0.8s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.portal-modal-overlay.is-fullscreen .portal-game-window {
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: none !important;
+  max-height: none !important;
+  border-radius: 0 !important;
+  border: none !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+  transition: all 0.8s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.portal-modal-overlay.is-fullscreen .portal-runes-ring1,
+.portal-modal-overlay.is-fullscreen .portal-runes-ring2,
+.portal-modal-overlay.is-fullscreen .portal-fire-sparks {
+  transform: scale(3.0) !important;
+  opacity: 0 !important;
+  transition: all 0.8s cubic-bezier(0.25, 1, 0.5, 1) !important;
+}
+
+/* Fullscreen HUD overlays inside layout */
+.portal-game-window.is-fullscreen-canvas {
+  position: relative !important;
+  display: block !important;
+}
+
+.portal-game-window.is-fullscreen-canvas .game-canvas-element {
+  max-width: none !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  border-radius: 0 !important;
+  border: none !important;
+}
+
+.portal-game-window.is-fullscreen-canvas .hud-playing-header {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  z-index: 1080 !important;
+  background: rgba(5, 7, 11, 0.75) !important;
+  backdrop-filter: blur(4px) !important;
+  border-bottom: 1px solid rgba(0, 245, 255, 0.2) !important;
+  margin: 0 !important;
+}
+
+.portal-game-window.is-fullscreen-canvas .friday-subtitles-bar {
+  position: absolute !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  z-index: 1080 !important;
+  background: rgba(5, 7, 11, 0.75) !important;
+  backdrop-filter: blur(4px) !important;
+  border-top: 1px solid rgba(0, 245, 255, 0.2) !important;
+  margin: 0 !important;
+}

@@ -271,20 +271,23 @@ const ArcadePortal = ({ stoneName, onClose, onGameComplete }) => {
 
   const rank = getRank(score);
 
+  const isFullscreen = missionState !== 'AVAILABLE' && missionState !== 'RETURNING';
+
   return (
-    <div className="portal-modal-overlay" style={{ zIndex: 1050 }}>
+    <div className={`portal-modal-overlay ${isFullscreen ? 'is-fullscreen' : ''}`} style={{ zIndex: 1050 }}>
       <div className="doctor-strange-portal-frame">
         <div className="portal-runes-ring1" />
         <div className="portal-runes-ring2" />
         <div className="portal-fire-sparks" />
         
         {/* Game portal frame */}
-        <div className="portal-game-window" style={{ borderRadius: '8px', padding: '15px' }}>
+        <div className={`portal-game-window ${isFullscreen ? 'is-fullscreen-canvas' : ''}`} style={{ borderRadius: '8px', padding: '15px' }}>
           <div className="hologram-scanlines" />
 
           {/* HUD (playing phase) */}
           {missionState === 'PLAYING' && (
             <div 
+              className="hud-playing-header"
               style={{
                 width: '100%',
                 display: 'flex',

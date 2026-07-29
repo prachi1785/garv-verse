@@ -197,7 +197,7 @@ function App() {
 
       {/* Stage 2: S.H.I.E.L.D Dashboard */}
       {stage === 'dashboard' && (
-        <div className="dashboard-wrapper">
+        <div className={`dashboard-wrapper ${activeGame ? 'dashboard-fade-out' : ''}`}>
           {/* Top HUD Nav */}
           <div className="dashboard-top-hud">
             <div className="hud-logo">
